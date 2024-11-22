@@ -8,6 +8,12 @@ bool WorldBotAI::CanPerformDual() const
     std::string botName = me->GetName();
     std::transform(botName.begin(), botName.end(), botName.begin(), ::tolower);
 
+    if (me->GetTeam() == ALLIANCE && (me->GetMapId() != 0 || me->GetDistance2d(-9002.163f, 867.087f) > 1000.f))
+        return false;
+
+    if (me->GetTeam() == HORDE && (me->GetMapId() != 1 || me->GetDistance2d(1469.857f, -4220.508f) > 1000.f))
+        return false;
+
     return m_taskManager.IsTaskLevelAppropriate(TASK_DUAL, me->GetLevel()) &&
         !me->IsInCombat() && !me->InBattleGround() && !m_isDualBot && 
         botName.find("bank") == std::string::npos;
@@ -40,6 +46,7 @@ void WorldBotAI::StartDualing()
             duelX = -9123.0f;
             duelY = 346.0f;
             duelZ = 94.0f;
+            me->GetMap()->GetWalkRandomPosition(nullptr, duelX, duelY, duelZ, VISIBILITY_DISTANCE_SMALL)
         }
         else
         {
@@ -47,6 +54,7 @@ void WorldBotAI::StartDualing()
             duelX = 1277.0f;
             duelY = -4385.0f;
             duelZ = 29.0f;
+            me->GetMap()->GetWalkRandomPosition(nullptr, duelX, duelY, duelZ, VISIBILITY_DISTANCE_SMALL);
         }
 
         // Move to the dueling location
@@ -77,8 +85,9 @@ void WorldBotAI::UpdateDualingBehavior()
 {
     if (m_isDualBotMovingToLocation)
     {
+        float distanceToHotSpot = me->GetDistance(DestCoordinatesX, DestCoordinatesY, DestCoordinatesZ);
         // Check if we've reached the dueling location
-        if (me->GetMotionMaster()->GetCurrentMovementGeneratorType() == IDLE_MOTION_TYPE)
+        if (distanceToHotSpot < 15.0f)
         {
             sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotAI: Bot %s has reached the dueling location.", me->GetName());
             m_isDualBotMovingToLocation = false;
