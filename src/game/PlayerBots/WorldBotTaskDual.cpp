@@ -46,7 +46,7 @@ void WorldBotAI::StartDualing()
             duelX = -9123.0f;
             duelY = 346.0f;
             duelZ = 94.0f;
-            me->GetMap()->GetWalkRandomPosition(nullptr, duelX, duelY, duelZ, VISIBILITY_DISTANCE_SMALL)
+            me->GetMap()->GetWalkRandomPosition(nullptr, duelX, duelY, duelZ, VISIBILITY_DISTANCE_SMALL);
         }
         else
         {
