@@ -138,6 +138,15 @@ ChatCommand * ChatHandler::getCommandTable()
         { "kalimdor",   SEC_ADMINISTRATOR,      false, &ChatHandler::HandleWorldBotAddKalimdorCommand,  "", nullptr },
         { nullptr,      0,                      false, nullptr,                                        "", nullptr },
     };
+    static ChatCommand worldBotPathEditorCommandTable[] =
+    {
+        { "alterac",    SEC_ADMINISTRATOR,      false, &ChatHandler::HandleWorldBotAddAlteracCommand, "", nullptr },
+        { "arathi",     SEC_ADMINISTRATOR,      false, &ChatHandler::HandleWorldBotAddArathiCommand,  "", nullptr },
+        { "warsong",    SEC_ADMINISTRATOR,      false, &ChatHandler::HandleWorldBotAddWarsongCommand, "", nullptr },
+        { "eastern",    SEC_ADMINISTRATOR,      false, &ChatHandler::HandleWorldBotAddEasternKingdomsCommand, "", nullptr },
+        { "kalimdor",   SEC_ADMINISTRATOR,      false, &ChatHandler::HandleWorldBotAddKalimdorCommand,  "", nullptr },
+        { nullptr,      0,                      false, nullptr,                                        "", nullptr },
+    };
     static ChatCommand worldBotCommandTable[] =
     {
         { "add",          SEC_ADMINISTRATOR,    false, nullptr,  "Add a new bot", worldBotAddCommandTable },
@@ -149,7 +158,8 @@ ChatCommand * ChatHandler::getCommandTable()
         { "show path",    SEC_ADMINISTRATOR,    false, &ChatHandler::HandleWorldBotShowPathCommand,    "", nullptr },
         { "show all nodes",    SEC_ADMINISTRATOR,    false, &ChatHandler::HandleWorldBotShowAllNodesCommand,    "", nullptr },
         { "stats",        SEC_ADMINISTRATOR,    false, &ChatHandler::HandleWorldBotStatsCommand,        "", nullptr },
-        { "info",         SEC_GAMEMASTER,       false, &ChatHandler::HandleWorldBotInfoCommand,          "", nullptr },
+        { "info",         SEC_ADMINISTRATOR,       false, &ChatHandler::HandleWorldBotInfoCommand,          "", nullptr },
+        { "patheditor",   SEC_ADMINISTRATOR,    false, nullptr,  "patheditor", worldBotPathEditorCommandTable },
         { nullptr,        0,                    false, nullptr,                                          "", nullptr },
     };
     static ChatCommand accountSetCommandTable[] =

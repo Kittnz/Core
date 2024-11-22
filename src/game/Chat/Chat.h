@@ -311,6 +311,14 @@ class ChatHandler
         bool HandleWorldBotClearPathVisualsCommand(char* args);
         bool HandleWorldBotStatsCommand(char* args);
         bool HandleWorldBotInfoCommand(char* args);
+        bool HandleWorldBotPathEditorAddNodeCommand(char* args);
+        bool HandleWorldBotPathEditorEditNodeCommand(char* args);
+        bool HandleWorldBotPathEditorDeleteNodeCommand(char* args);
+        bool HandleWorldBotPathEditorAddLinkCommand(char* args);
+        bool HandleWorldBotPathEditorEditLinkCommand(char* args);
+        bool HandleWorldBotPathEditorDeleteLinkCommand(char* args);
+        bool HandleWorldBotPathEditorGeneratePathCommand(char* args);
+        bool HandleWorldBotPathEditorCheckPathCommand(char* args);
 
         // spell_disabled
         bool HandleReloadSpellDisabledCommand(char *args);

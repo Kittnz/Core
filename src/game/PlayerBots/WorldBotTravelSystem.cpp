@@ -244,7 +244,7 @@ bool WorldBotTravelSystem::AreNodesConnected(uint32 startNodeId, uint32 endNodeI
 
 std::vector<TravelPath> WorldBotTravelSystem::FindPath(uint32 startNodeId, uint32 endNodeId, bool isCorpseRun, bool allowFlightPaths) const
 {
-    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotTravelSystem: Finding path from node %u to node %u (Allow flight paths: %s)",
+    sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "WorldBotTravelSystem: Finding path from node %u to node %u (Allow flight paths: %s)",
         startNodeId, endNodeId, allowFlightPaths ? "Yes" : "No");
 
     const TravelNode* startNode = GetNode(startNodeId);
@@ -263,6 +263,7 @@ std::vector<TravelPath> WorldBotTravelSystem::FindPath(uint32 startNodeId, uint3
     std::unordered_map<uint32, uint32> cameFrom;
     std::unordered_map<uint32, float> gScore;
     std::unordered_map<uint32, float> fScore;
+    std::unordered_map<uint32, TravelNodePathType> linkTypes;
 
     gScore[startNodeId] = 0.0f;
     fScore[startNodeId] = HeuristicCostEstimate(startNodeId, endNodeId);
@@ -283,8 +284,8 @@ std::vector<TravelPath> WorldBotTravelSystem::FindPath(uint32 startNodeId, uint3
 
         if (current == endNodeId)
         {
-            sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "Path found from %u to %u in %u iterations", startNodeId, endNodeId, iterationCount);
-            return ReconstructPath(cameFrom, current);
+            sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "Path found from %u to %u in %u iterations", startNodeId, endNodeId, iterationCount);
+            return ReconstructPath(cameFrom, linkTypes, current);
         }
 
         auto linkRange = GetNodeLinks(current);
@@ -315,6 +316,7 @@ std::vector<TravelPath> WorldBotTravelSystem::FindPath(uint32 startNodeId, uint3
                 cameFrom[neighbor] = current;
                 gScore[neighbor] = tentativeGScore;
                 fScore[neighbor] = gScore[neighbor] + HeuristicCostEstimate(neighbor, endNodeId);
+                linkTypes[neighbor] = linkType;  // Store the link type
 
                 auto it = std::find_if(openSet.begin(), openSet.end(),
                     [neighbor](const auto& pair) { return pair.second == neighbor; });
@@ -329,12 +331,21 @@ std::vector<TravelPath> WorldBotTravelSystem::FindPath(uint32 startNodeId, uint3
                     it->first = fScore[neighbor];
                     std::make_heap(openSet.begin(), openSet.end(), std::greater<>());
                 }
+
+                // For flight paths, we might want to adjust the cost
+                if (linkType == TravelNodePathType::FlightPath)
+                {
+                    sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "Processing flight path from node %u to %u", current, neighbor);
+                    // Adjust the cost for flight paths if needed
+                    // gScore[neighbor] = tentativeGScore * 0.8f; // Example: make flight paths slightly more preferable
+                    // fScore[neighbor] = gScore[neighbor] + HeuristicCostEstimate(neighbor, endNodeId);
+                }
             }
         }
 
-        if (iterationCount % 100 == 0)
+        if (iterationCount % 10 == 0)
         {
-            sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "Iteration %u, open set size: %u", iterationCount, openSet.size());
+            sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "Iteration %u, open set size: %u", iterationCount, static_cast<uint32>(openSet.size()));
         }
     }
 
@@ -404,7 +415,7 @@ bool WorldBotTravelSystem::IsFlightPathLink(uint32 fromNodeId, uint32 toNodeId) 
     return false;
 }
 
-std::vector<TravelPath> WorldBotTravelSystem::ReconstructPath(const std::unordered_map<uint32, uint32>& cameFrom, uint32 current) const
+std::vector<TravelPath> WorldBotTravelSystem::ReconstructPath(const std::unordered_map<uint32, uint32>& cameFrom, const std::unordered_map<uint32, TravelNodePathType>& linkTypes, uint32 current) const
 {
     std::vector<uint32> nodePath;
     while (cameFrom.find(current) != cameFrom.end())
@@ -415,10 +426,10 @@ std::vector<TravelPath> WorldBotTravelSystem::ReconstructPath(const std::unorder
     nodePath.push_back(current);
     std::reverse(nodePath.begin(), nodePath.end());
 
-    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "Reconstructed path (node IDs): ");
+    sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "Reconstructed path (node IDs): ");
     for (size_t i = 0; i < nodePath.size(); ++i)
     {
-        sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "  Node %zu: %u", i, nodePath[i]);
+        sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "  Node %zu: %u", i, nodePath[i]);
     }
 
     std::vector<TravelPath> fullPath;
@@ -426,16 +437,58 @@ std::vector<TravelPath> WorldBotTravelSystem::ReconstructPath(const std::unorder
     {
         uint32 fromNodeId = nodePath[i];
         uint32 toNodeId = nodePath[i + 1];
-        auto pathRange = m_travelPaths.equal_range(std::make_pair(fromNodeId, toNodeId));
-        for (auto it = pathRange.first; it != pathRange.second; ++it)
+
+        auto linkTypeIt = linkTypes.find(toNodeId);
+        if (linkTypeIt != linkTypes.end() && linkTypeIt->second == TravelNodePathType::FlightPath)
         {
-            fullPath.push_back(it->second);
+            // For flight paths, we only add the start and end nodes
+            TravelPath startNode = GetTravelPathForNode(fromNodeId);
+            TravelPath endNode = GetTravelPathForNode(toNodeId);
+
+            if (!startNode.nodeId || !endNode.nodeId)
+            {
+                sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "Failed to get TravelPath for nodes %u or %u", fromNodeId, toNodeId);
+                continue;
+            }
+
+            fullPath.push_back(startNode);
+            fullPath.push_back(endNode);
+
+            sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "Added flight path from node %u to %u", fromNodeId, toNodeId);
+        }
+        else
+        {
+            // For other types, we add all intermediate points
+            auto pathRange = m_travelPaths.equal_range(std::make_pair(fromNodeId, toNodeId));
+            for (auto it = pathRange.first; it != pathRange.second; ++it)
+            {
+                fullPath.push_back(it->second);
+            }
         }
     }
 
-    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "Full path constructed with %zu points", fullPath.size());
+    sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "Full path constructed with %zu points", fullPath.size());
 
     return fullPath;
+}
+
+TravelPath WorldBotTravelSystem::GetTravelPathForNode(uint32 nodeId) const
+{
+    const TravelNode* node = GetNode(nodeId);
+    if (!node)
+    {
+        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "Node %u not found", nodeId);
+        return TravelPath();
+    }
+
+    TravelPath path;
+    path.nodeId = nodeId;
+    path.mapId = node->mapId;
+    path.x = node->x;
+    path.y = node->y;
+    path.z = node->z;
+
+    return path;
 }
 
 uint32 WorldBotTravelSystem::GetRandomNodeId(uint32 mapId, uint32 startNodeId)
@@ -729,14 +782,14 @@ bool WorldBotTravelSystem::ResumePath(WorldBotAI* botAI)
             botAI->m_currentPathIndex);
     }
 
-    float maxResumeDistance = 750.f;
+    /*float maxResumeDistance = 750.f;
     if (shortestDistance > maxResumeDistance)
     {
         sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotTravelSystem: %s too far from path (%.2f > %.2f), cannot resume %s, teleporting to nearest point", me->GetName(), shortestDistance, maxResumeDistance,
             botAI->m_isRunningToCorpse ? "corpse run" : (botAI->m_isSpecificDestinationPath ? "specific path" : "regular path"));
 
         me->TeleportTo(nearestMapId, nearestX, nearestY, nearestZ, me->GetOrientation(), TELE_TO_FORCE_MAP_CHANGE);
-    }
+    }*/
 
     return true;
 }
@@ -775,28 +828,23 @@ void WorldBotAI::MovementInform(uint32 movementType, uint32 data)
 {
     if (movementType == POINT_MOTION_TYPE)
     {
-        //sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotAI: Bot %s reached point with data %u", me->GetName(), data);
-
-        if (!m_currentPath.empty())
+        if (!m_currentPath.empty() && data == m_currentPath[m_currentPathIndex - 1].nr)
         {
-            if (data == m_currentPath[m_currentPathIndex - 1].nr)
+            uint32 currentNodeId = m_currentPath[m_currentPathIndex - 1].nodeId;
+            if (ExecuteNodeAction(currentNodeId))
             {
-                uint32 currentNodeId = m_currentPath[m_currentPathIndex - 1].nodeId;
-                if (ExecuteNodeAction(currentNodeId))
-                {
-                    MoveToNextPoint();
-                }
-                else
-                {
-                    // Handle the case where the node action couldn't be executed
-                    sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "WorldBotAI: Failed to execute action for node %u", currentNodeId);
-                    // You might want to implement some fallback behavior here
-                }
+                MoveToNextPoint();
             }
             else
             {
-                sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "WorldBotAI: Unexpected movement point reached for bot %s", me->GetName());
+                // Handle the case where the node action couldn't be executed
+                sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "WorldBotAI: Failed to execute action for node %u", currentNodeId);
+                // Implement fallback behavior here
             }
+        }
+        else
+        {
+            sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "WorldBotAI: Unexpected movement point reached for bot %s", me->GetName());
         }
     }
 }
@@ -927,9 +975,10 @@ uint32 GetRandomTaxiNode(uint32 mapid, Team team)
 
 bool WorldBotAI::ExecuteNodeAction(uint32 nodeId)
 {
-    // Only execute if the node is an end node
-    if (m_currentPathIndex >= m_currentPath.size() || m_currentPath[m_currentPathIndex - 1].toNodeId != nodeId)
+    // Execute the action when we reach this node (which is the start of a potential link)
+    if (m_currentPathIndex >= m_currentPath.size() || m_currentPath[m_currentPathIndex - 1].nodeId != nodeId)
     {
+        sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "WorldBotAI: Skipping node action for %u as it's not the current node", nodeId);
         return true;
     }
 

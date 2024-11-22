@@ -16,6 +16,7 @@
 #include "BattleGroundMgr.h"
 #include "WorldBotAI.h"
 #include "WorldBotTravelSystem.h"
+#include "WorldBotTravelEditor.h"
 #include "WorldBotChat.h"
 #include "Language.h"
 #include "Spell.h"
@@ -162,6 +163,7 @@ void PlayerBotMgr::Load()
         sWorldBotTravelSystem.LoadTravelNodes();
         sWorldBotTravelSystem.LoadTravelNodeLinks();
         sWorldBotTravelSystem.LoadTravelPaths();
+        sWorldBotTravelEditor->CheckAllTravelPaths();
         sWorldBotChat.LoadPlayerChat();
         WorldBotLoadAreaPOI();
         WorldBotLoadGrindProfiles();
@@ -2254,6 +2256,183 @@ bool ChatHandler::HandleWorldBotClearPathVisualsCommand(char* args)
     Player* pPlayer = m_session->GetPlayer();
     sWorldBotTravelSystem.ClearPathVisuals(pPlayer);
     SendSysMessage("Cleared all path visuals.");
+    return true;
+}
+
+/*
+World Bot Travel Editor commands
+*/
+
+bool ChatHandler::HandleWorldBotPathEditorAddNodeCommand(char* args)
+{
+    Player* player = m_session->GetPlayer();
+    float x, y, z;
+    uint32 mapId, type;
+    char* name = nullptr;
+
+    if (!ExtractFloat(&args, x) || !ExtractFloat(&args, y) || !ExtractFloat(&args, z) ||
+        !ExtractUInt32(&args, mapId) || !ExtractUInt32(&args, type) || !ExtractArg(&args, name))
+    {
+        SendSysMessage("Usage: .worldbot patheditor addnode <x> <y> <z> <mapId> <type> <name>");
+        return false;
+    }
+
+    if (sWorldBotTravelEditor->AddNode(player, x, y, z, mapId, name, type))
+    {
+        PSendSysMessage("Node added successfully.");
+        return true;
+    }
+
+    PSendSysMessage("Failed to add node.");
+    return false;
+}
+
+bool ChatHandler::HandleWorldBotPathEditorEditNodeCommand(char* args)
+{
+    uint32 nodeId;
+    char* property = nullptr;
+    char* value = nullptr;
+
+    if (!ExtractUInt32(&args, nodeId) || !ExtractArg(&args, property) || !ExtractArg(&args, value))
+    {
+        SendSysMessage("Usage: .worldbot patheditor editnode <nodeId> <property> <value>");
+        return false;
+    }
+
+    if (sWorldBotTravelEditor->EditNode(nodeId, property, value))
+    {
+        PSendSysMessage("Node %u edited successfully.", nodeId);
+        return true;
+    }
+
+    PSendSysMessage("Failed to edit node %u.", nodeId);
+    return false;
+}
+
+bool ChatHandler::HandleWorldBotPathEditorDeleteNodeCommand(char* args)
+{
+    uint32 nodeId;
+
+    if (!ExtractUInt32(&args, nodeId))
+    {
+        SendSysMessage("Usage: .worldbot patheditor deletenode <nodeId>");
+        return false;
+    }
+
+    if (sWorldBotTravelEditor->DeleteNode(nodeId))
+    {
+        PSendSysMessage("Node %u deleted successfully.", nodeId);
+        return true;
+    }
+
+    PSendSysMessage("Failed to delete node %u.", nodeId);
+    return false;
+}
+
+bool ChatHandler::HandleWorldBotPathEditorAddLinkCommand(char* args)
+{
+    uint32 fromNodeId, toNodeId, type, extraCost;
+    float distance, swimDistance;
+
+    if (!ExtractUInt32(&args, fromNodeId) || !ExtractUInt32(&args, toNodeId) ||
+        !ExtractUInt32(&args, type) || !ExtractFloat(&args, distance) ||
+        !ExtractFloat(&args, swimDistance) || !ExtractUInt32(&args, extraCost))
+    {
+        SendSysMessage("Usage: .worldbot patheditor addlink <fromNodeId> <toNodeId> <type> <distance> <swimDistance> <extraCost>");
+        return false;
+    }
+
+    if (sWorldBotTravelEditor->AddLink(fromNodeId, toNodeId, type, distance, swimDistance, extraCost))
+    {
+        PSendSysMessage("Link added successfully between nodes %u and %u.", fromNodeId, toNodeId);
+        return true;
+    }
+
+    PSendSysMessage("Failed to add link between nodes %u and %u.", fromNodeId, toNodeId);
+    return false;
+}
+
+bool ChatHandler::HandleWorldBotPathEditorEditLinkCommand(char* args)
+{
+    uint32 fromNodeId, toNodeId;
+    char* property = nullptr;
+    char* value = nullptr;
+
+    if (!ExtractUInt32(&args, fromNodeId) || !ExtractUInt32(&args, toNodeId) ||
+        !ExtractArg(&args, property) || !ExtractArg(&args, value))
+    {
+        SendSysMessage("Usage: .worldbot patheditor editlink <fromNodeId> <toNodeId> <property> <value>");
+        return false;
+    }
+
+    if (sWorldBotTravelEditor->EditLink(fromNodeId, toNodeId, property, value))
+    {
+        PSendSysMessage("Link between nodes %u and %u edited successfully.", fromNodeId, toNodeId);
+        return true;
+    }
+
+    PSendSysMessage("Failed to edit link between nodes %u and %u.", fromNodeId, toNodeId);
+    return false;
+}
+
+bool ChatHandler::HandleWorldBotPathEditorDeleteLinkCommand(char* args)
+{
+    uint32 fromNodeId, toNodeId;
+
+    if (!ExtractUInt32(&args, fromNodeId) || !ExtractUInt32(&args, toNodeId))
+    {
+        SendSysMessage("Usage: .worldbot patheditor deletelink <fromNodeId> <toNodeId>");
+        return false;
+    }
+
+    if (sWorldBotTravelEditor->DeleteLink(fromNodeId, toNodeId))
+    {
+        PSendSysMessage("Link between nodes %u and %u deleted successfully.", fromNodeId, toNodeId);
+        return true;
+    }
+
+    PSendSysMessage("Failed to delete link between nodes %u and %u.", fromNodeId, toNodeId);
+    return false;
+}
+
+bool ChatHandler::HandleWorldBotPathEditorGeneratePathCommand(char* args)
+{
+    Player* player = m_session->GetPlayer();
+    uint32 startNodeId, endNodeId;
+
+    if (!ExtractUInt32(&args, startNodeId) || !ExtractUInt32(&args, endNodeId))
+    {
+        SendSysMessage("Usage: .worldbot patheditor generatepath <startNodeId> <endNodeId>");
+        return false;
+    }
+
+    std::vector<TravelPath> path = sWorldBotTravelEditor->GeneratePath(player, startNodeId, endNodeId);
+
+    if (!path.empty())
+    {
+        PSendSysMessage("Path generated with %u points.", (uint32)path.size());
+
+        // Save the generated path
+        if (sWorldBotTravelEditor->SaveGeneratedPath(startNodeId, endNodeId, path))
+        {
+            PSendSysMessage("Path successfully saved to the database.");
+        }
+        else
+        {
+            PSendSysMessage("Failed to save the path to the database.");
+        }
+
+        return true;
+    }
+
+    PSendSysMessage("Failed to generate path.");
+    return false;
+}
+
+bool ChatHandler::HandleWorldBotPathEditorCheckPathCommand(char* /*args*/)
+{
+    Player* player = m_session->GetPlayer();
+    sWorldBotTravelEditor->CheckPath(player);
     return true;
 }
 

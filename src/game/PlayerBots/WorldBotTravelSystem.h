@@ -76,6 +76,13 @@ public:
     void LoadTravelNodeLinks();
     void LoadTravelPaths();
 
+    void ReloadTravelPaths()
+    {
+        m_travelPaths.clear();
+        LoadTravelPaths();
+        sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "WorldBotTravelSystem: Travel paths reloaded.");
+    };
+
     // Functions
     TravelNode const* GetNearestNode(float x, float y, float z, uint32 mapId) const;
     const TravelPath* GetPathBetweenNodes(uint32 fromNodeId, uint32 toNodeId) const;
@@ -89,7 +96,8 @@ public:
     std::vector<TravelPath> FindPathWithoutFlightPaths(uint32 startNodeId, uint32 endNodeId) const;
     float GetPathCostWithoutFlightPaths(uint32 fromNodeId, uint32 toNodeId) const;
     bool IsFlightPathLink(uint32 fromNodeId, uint32 toNodeId) const;
-    std::vector<TravelPath> ReconstructPath(const std::unordered_map<uint32, uint32>& cameFrom, uint32 current) const;
+    std::vector<TravelPath> ReconstructPath(const std::unordered_map<uint32, uint32>& cameFrom, const std::unordered_map<uint32, TravelNodePathType>& linkTypes, uint32 current) const;
+    TravelPath GetTravelPathForNode(uint32 nodeId) const;
     uint32 GetRandomNodeId(uint32 mapId, uint32 startNodeId);
 
     const TravelNode* GetNode(uint32 nodeId) const
@@ -104,13 +112,12 @@ public:
         return m_travelNodeLinks.equal_range(nodeId);
     }
 
-    //bool ResumePath(Player* player, std::vector<TravelPath>& currentPath, size_t& currentPathIndex, bool isSpecificDestinationPath, bool isCorpseRun);
     bool ResumePath(WorldBotAI* botAI);
 
-    const std::map<uint32, TravelNode>& GetAllNodes() const
-    {
-        return m_travelNodes;
-    }
+    const std::map<uint32, TravelNode>& GetAllNodes() const { return m_travelNodes; }
+    const std::multimap<uint32, TravelNodeLink>& GetAllNodeLinks() const { return m_travelNodeLinks; }
+    const std::multimap<std::pair<uint32, uint32>, TravelPath>& GetAllTravelPaths() const { return m_travelPaths; }
+
     std::pair<std::multimap<std::pair<uint32, uint32>, TravelPath>::const_iterator, std::multimap<std::pair<uint32, uint32>, TravelPath>::const_iterator> GetAllPathsFromNode(uint32 nodeId) const;
 
     // Path and Node visuals
@@ -184,6 +191,13 @@ public:
         return std::sqrt(dx * dx + dy * dy + dz * dz);
     }
 
+    std::map<uint32, TravelNode> m_travelNodes;
+    std::multimap<uint32, TravelNodeLink> m_travelNodeLinks;
+    std::multimap<std::pair<uint32, uint32>, TravelPath> m_travelPaths;
+
+    std::unordered_map<uint32, std::vector<uint32>> m_mapNodeIds;
+    std::unordered_map<uint32, std::vector<uint32>> m_nodeConnections;
+
 private:
     WorldBotTravelSystem(); // Declaration only
     ~WorldBotTravelSystem();
@@ -192,12 +206,6 @@ private:
     WorldBotTravelSystem(const WorldBotTravelSystem&) = delete;
     WorldBotTravelSystem& operator=(const WorldBotTravelSystem&) = delete;
 
-    std::map<uint32, TravelNode> m_travelNodes;
-    std::multimap<uint32, TravelNodeLink> m_travelNodeLinks;
-    std::multimap<std::pair<uint32, uint32>, TravelPath> m_travelPaths;
-
-    std::unordered_map<uint32, std::vector<uint32>> m_mapNodeIds;
-    std::unordered_map<uint32, std::vector<uint32>> m_nodeConnections;
     mutable std::mt19937 m_randomGenerator;
 
     struct NodeDistance
