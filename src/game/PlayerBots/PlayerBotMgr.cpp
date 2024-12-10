@@ -28,6 +28,7 @@ std::vector<WorldBotsCollection> myBots;
 std::vector<WorldBotsCollection> myHordeBots;
 std::vector<WorldBotsCollection> myAllianceBots;
 std::vector<WorldBotsAreaPOI> myAreaPOI;
+std::vector<GrindQuestInfo> grindQuests;
 
 PlayerBotMgr::PlayerBotMgr()
 {
@@ -166,7 +167,8 @@ void PlayerBotMgr::Load()
         sWorldBotTravelEditor->CheckAllTravelPaths();
         sWorldBotChat.LoadPlayerChat();
         WorldBotLoadAreaPOI();
-        WorldBotLoadGrindProfiles();
+        //WorldBotLoadGrindProfiles();
+        WorldBotLoadGrindQuests();
 
         // Load db characters
         m_useWorldBotLoader = sWorld.getConfig(CONFIG_BOOL_WORLDBOT_LOADER);
@@ -2764,17 +2766,6 @@ bool ChatHandler::HandleWorldBotInfoCommand(char* args)
             botAI->DestCoordinatesX, botAI->DestCoordinatesY, botAI->DestCoordinatesZ);
     }
 
-    if (!botAI->m_grindHotSpots.empty())
-    {
-        PSendSysMessage("Grind Hotspots:");
-        for (size_t i = 0; i < botAI->m_grindHotSpots.size(); ++i)
-        {
-            const Position& hotSpot = botAI->m_grindHotSpots[i];
-            PSendSysMessage("  Hotspot %zu: (%.2f, %.2f, %.2f)", i + 1, hotSpot.x, hotSpot.y, hotSpot.z);
-        }
-        PSendSysMessage("Current Hotspot Index: %zu", botAI->m_currentHotSpotIndex);
-    }
-
     return true;
 }
 
@@ -2785,8 +2776,6 @@ void PlayerBotMgr::WorldBotBalancer(uint32 diff)
     // Check every minute
     if (m_BalanceTimer.Passed())
     {
-        m_BalanceTimer.Reset(60000); // 1 minute
-
         uint32 currentHordeBots = 0;
         uint32 currentAllianceBots = 0;
         uint32 desiredHordeBots = sWorld.getConfig(CONFIG_UINT32_WORLDBOT_HORDE_MAX);
@@ -2875,6 +2864,8 @@ void PlayerBotMgr::WorldBotBalancer(uint32 diff)
         // Log total available bots
         sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotBalancer: Total available bots - Horde: %zu, Alliance: %zu",
             myHordeBots.size(), myAllianceBots.size());
+
+        m_BalanceTimer.Reset(60000); // 1 minute
     }
 }
 
@@ -2917,7 +2908,7 @@ void PlayerBotMgr::WorldBotLoadAreaPOI()
     }
 }
 
-void PlayerBotMgr::WorldBotLoadGrindProfiles()
+/*void PlayerBotMgr::WorldBotLoadGrindProfiles()
 {
     sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "Loading grind profiles...");
     m_grindProfiles.clear();
@@ -2953,4 +2944,78 @@ void PlayerBotMgr::WorldBotLoadGrindProfiles()
     } while (result->NextRow());
 
     sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "Loaded %u grind profiles.", m_grindProfiles.size());
+}*/
+
+void PlayerBotMgr::WorldBotLoadGrindQuests()
+{
+    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "Loading grind quests...");
+    grindQuests.clear();
+
+    std::unique_ptr<QueryResult> result = WorldDatabase.Query(R"(
+        SELECT 
+            qt.entry AS quest_id,
+            qt.Title AS quest_title,
+            qt.QuestLevel AS quest_level,
+            CASE WHEN qt.RequiredRaces = 1 THEN 'Alliance'
+                 WHEN qt.RequiredRaces = 2 THEN 'Horde'
+                 ELSE 'Both' END AS faction,
+            CASE 
+                WHEN qt.ReqCreatureOrGOId1 > 0 THEN qt.ReqCreatureOrGOId1
+                WHEN qt.ReqCreatureOrGOId2 > 0 THEN qt.ReqCreatureOrGOId2
+                WHEN qt.ReqCreatureOrGOId3 > 0 THEN qt.ReqCreatureOrGOId3
+                WHEN qt.ReqCreatureOrGOId4 > 0 THEN qt.ReqCreatureOrGOId4
+            END AS creature_id,
+            ct.name AS creature_name,
+            c.map AS map_id,
+            ROUND(AVG(c.position_x), 2) AS avg_position_x,
+            ROUND(AVG(c.position_y), 2) AS avg_position_y,
+            ROUND(AVG(c.position_z), 2) AS avg_position_z,
+            COUNT(*) as spawn_count
+        FROM quest_template qt
+        JOIN creature_template ct ON (
+            ct.entry = qt.ReqCreatureOrGOId1 OR 
+            ct.entry = qt.ReqCreatureOrGOId2 OR 
+            ct.entry = qt.ReqCreatureOrGOId3 OR 
+            ct.entry = qt.ReqCreatureOrGOId4
+        )
+        JOIN creature c ON ct.entry = c.id
+        WHERE (
+            qt.ReqCreatureOrGOId1 > 0 OR 
+            qt.ReqCreatureOrGOId2 > 0 OR 
+            qt.ReqCreatureOrGOId3 > 0 OR 
+            qt.ReqCreatureOrGOId4 > 0
+        ) AND c.map IN (0, 1)
+        GROUP BY qt.entry, ct.entry
+        HAVING COUNT(*) > 1
+        ORDER BY qt.QuestLevel;
+    )");
+
+    if (!result)
+    {
+        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "Failed to load grind quests");
+        return;
+    }
+
+    do
+    {
+        Field* fields = result->Fetch();
+        GrindQuestInfo quest;
+
+        quest.questId = fields[0].GetUInt32();
+        quest.title = fields[1].GetString();
+        quest.level = fields[2].GetUInt32();
+        quest.faction = fields[3].GetString();
+        quest.creatureId = fields[4].GetUInt32();
+        quest.creatureName = fields[5].GetString();
+        quest.mapId = fields[6].GetUInt32();
+        quest.avgPosX = fields[7].GetFloat();
+        quest.avgPosY = fields[8].GetFloat();
+        quest.avgPosZ = fields[9].GetFloat();
+        quest.spawnCount = fields[10].GetUInt32();
+
+        grindQuests.push_back(quest);
+
+    } while (result->NextRow());
+
+    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "Loaded %zu grind quests", grindQuests.size());
 }

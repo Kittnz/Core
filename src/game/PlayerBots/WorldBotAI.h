@@ -101,15 +101,6 @@ enum WorldBotTasks
     TASK_LAST = TASK_PROTECTOR, // Last task
 };
 
-struct ChatData {
-    uint64 unixtimems;
-    uint32 guid;
-    std::string senderName;
-    std::string text;
-    uint32 chatType;
-    std::string channelName;
-};
-
 class WorldBotAI : public CombatBotBaseAI
 {
 public:
@@ -265,12 +256,6 @@ public:
     std::string GetCurrentTaskName() const { return m_taskManager.GetCurrentTaskName(); }
     uint32 GetTimeUntilNextTask() const { return (m_randomTaskTimer.GetExpiry() - WorldTimer::getMSTime()) / IN_MILLISECONDS; }
     uint8 GetCurrentTaskId() const { return m_taskManager.GetCurrentTaskId(); }
-    Position GetNextGrindSpot() const
-    {
-        if (m_currentHotSpotIndex < m_grindHotSpots.size())
-            return m_grindHotSpots[m_currentHotSpotIndex];
-        return Position();
-    }
     std::string GetExploreDestinationName() const { return DestName; }
 
     // Explore task methods
@@ -292,25 +277,20 @@ public:
     bool CanPerformGrind() const;
     void StartGrinding();
     bool IsGrindingComplete() const;
+
+    // Grind quest management
+  
+    // Grinding behavior
     void RegisterGrindTask();
     bool SetGrindDestination();
-    bool HasReachedGrindDestination() const;
-    void CreatePathFromHotSpots();
-    bool ShouldStopGrinding() const;
     void UpdateGrindingBehavior();
-    Unit* FindEntryTargetToAttack();
-    std::vector<std::string> SplitString(const std::string& str, char delim);
-    std::vector<uint32> SplitStringToUint32(const std::string& str, char delim);
-    void MoveToNextGrindSpot();
-    bool IsValidEntryTargetLevel(uint32 entryId);
-    void UpdateMaxLevelForGrindProfiles();
-    void ParseHotSpots(const std::string& hotSpotsStr);
+    Unit* FindNearestCreatureToGrind();
+    bool ShouldStopGrinding() const;
 
-    std::vector<Position> m_grindHotSpots;
+    Position m_grindDestination;
+    bool m_isAtGrindDestination;
     uint32 m_grindEntryTarget;
     uint32 m_grindMaxLevel;
-    size_t m_currentHotSpotIndex;
-    ShortTimeTracker m_grindUpdateTimer;
 
     // Dual task methods
     bool CanPerformDual() const;

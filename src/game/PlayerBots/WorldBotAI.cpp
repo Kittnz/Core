@@ -348,7 +348,7 @@ bool WorldBotAI::DrinkAndEat()
     {
         if (me->GetMotionMaster()->GetCurrentMovementGeneratorType())
         {
-            ClearPath();
+            //ClearPath();
             StopMoving();
         }
         if (SpellEntry const* pSpellEntry = sSpellMgr.GetSpellEntry(WB_SPELL_FOOD))
@@ -363,7 +363,7 @@ bool WorldBotAI::DrinkAndEat()
     {
         if (me->GetMotionMaster()->GetCurrentMovementGeneratorType())
         {
-            ClearPath();
+            //ClearPath();
             StopMoving();
         }
         if (SpellEntry const* pSpellEntry = sSpellMgr.GetSpellEntry(WB_SPELL_DRINK))
@@ -395,7 +395,7 @@ bool WorldBotAI::AttackStart(Unit* pVictim)
 
     if (me->Attack(pVictim, true))
     {
-        ClearPath();
+        //ClearPath();
         StopMoving();
 
         if ((m_role == ROLE_RANGE_DPS || m_role == ROLE_HEALER) &&
@@ -834,13 +834,9 @@ void WorldBotAI::UpdateWaypointMovement()
             break;
         case TASK_EXPLORE:
             if (hasPoiDestination)
-            {
                 StartNewPathToSpecificDestination(DestCoordinatesX, DestCoordinatesY, DestCoordinatesZ, DestMap, false);
-            }
             else
-            {
                 StartExploring();
-            }
             break;
         case TASK_GRIND:
             UpdateGrindingBehavior();

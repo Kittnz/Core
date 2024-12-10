@@ -700,7 +700,7 @@ bool WorldBotTravelSystem::ResumePath(WorldBotAI* botAI)
     }
 
     // If we're not dead and not running to corpse, proceed with normal path resumption
-    if (botAI->m_currentPath.empty() && botAI->m_grindHotSpots.empty() && !botAI->hasPoiDestination)
+    if (botAI->m_currentPath.empty() && !botAI->hasPoiDestination)
     {
         sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotTravelSystem: No path to resume for bot %s", me->GetName());
         return false; // No path to resume
@@ -715,36 +715,7 @@ bool WorldBotTravelSystem::ResumePath(WorldBotAI* botAI)
     float nearestZ = me->GetPositionZ();
 
     // Check if we're on a grinding task
-    if (!botAI->m_grindHotSpots.empty())
-    {
-        // Find the nearest grind hot spot
-        for (size_t i = 0; i < botAI->m_grindHotSpots.size(); ++i)
-        {
-            const Position& hotSpot = botAI->m_grindHotSpots[i];
-            float distance = GetDistance3D(*me, hotSpot);
-            if (distance < shortestDistance)
-            {
-                shortestDistance = distance;
-                nearestIndex = i;
-                foundNearerPoint = true;
-                nearestMapId = me->GetMapId(); // Assuming hotspots are on the same map
-                nearestX = hotSpot.x;
-                nearestY = hotSpot.y;
-                nearestZ = hotSpot.z;
-            }
-        }
-
-        // If we found a nearer point, update the current hot spot index
-        if (foundNearerPoint)
-        {
-            botAI->m_currentHotSpotIndex = nearestIndex;
-            sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotTravelSystem: %s resuming grind task at hot spot %zu, distance %.2f",
-                me->GetName(), botAI->m_currentHotSpotIndex, shortestDistance);
-            return true;
-        }
-    }
-    // Check if we're on an explore task
-    else if (botAI->hasPoiDestination)
+    if (botAI->hasPoiDestination) // Check if we're on an explore task
     {
         shortestDistance = GetDistance3D(me, botAI->DestCoordinatesX, botAI->DestCoordinatesY, botAI->DestCoordinatesZ);
         sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotTravelSystem: %s resuming explore task to destination (%.2f, %.2f, %.2f), distance %.2f",
@@ -929,26 +900,7 @@ void WorldBotAI::HandleSpecificDestinationCompletion()
 
 void WorldBotAI::HandleGrindTaskCompletion()
 {
-    if (HasReachedGrindDestination())
-    {
-        m_currentHotSpotIndex++;
-        if (m_currentHotSpotIndex < m_grindHotSpots.size())
-        {
-            StartNewPathToSpecificDestination(m_grindHotSpots[m_currentHotSpotIndex].x,
-                m_grindHotSpots[m_currentHotSpotIndex].y,
-                m_grindHotSpots[m_currentHotSpotIndex].z,
-                me->GetMapId(), false);
-        }
-        else
-        {
-            m_taskManager.CompleteCurrentTask();
-        }
-    }
-    else
-    {
-        sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotAI: Bot %s near grind destination but not exact. Attempting to get closer.", me->GetName());
-        CreatePathFromHotSpots();
-    }
+    m_taskManager.CompleteCurrentTask();
 }
 
 /*

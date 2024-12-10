@@ -8,6 +8,15 @@
 #include "WorldBotAI.h"
 #include "Common.h" // Include this for the chat message types
 
+struct ChatData {
+    uint64 unixtimems;
+    uint32 guid;
+    std::string senderName;
+    std::string text;
+    uint32 chatType;
+    std::string channelName;
+};
+
 struct PlayerChatData {
     uint64 unixtimems;
     uint32 guid;

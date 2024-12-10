@@ -108,6 +108,20 @@ struct WorldBotGrindProfile {
     uint32 mapId;
 };
 
+struct GrindQuestInfo {
+    uint32 questId;
+    std::string title;
+    uint32 level;
+    std::string faction;
+    uint32 creatureId;
+    std::string creatureName;
+    uint32 mapId;
+    float avgPosX;
+    float avgPosY;
+    float avgPosZ;
+    uint32 spawnCount;
+};
+
 class PlayerBotMgr
 {
     public:
@@ -155,8 +169,7 @@ class PlayerBotMgr
         bool m_useWorldBotLoader = false;
         void WorldBotBalancer(uint32 diff);
         void WorldBotLoadAreaPOI();
-        void WorldBotLoadGrindProfiles();
-        const std::vector<WorldBotGrindProfile>& GetGrindProfiles() const { return m_grindProfiles; }
+        void WorldBotLoadGrindQuests();
 
         ShortTimeTracker m_BotBalanceTimer;
         uint32 GetOnlineBotsCount(Team team) const;
@@ -183,7 +196,8 @@ class PlayerBotMgr
         bool m_confDebug;
         bool m_confEnableRandomBots;
         bool m_confBattleBotAutoJoin;
-        std::vector<WorldBotGrindProfile> m_grindProfiles;
+
+        std::vector<WorldBotGrindProfile> m_grindQuests;
 
     private:
         ShortTimeTracker m_BalanceTimer;
