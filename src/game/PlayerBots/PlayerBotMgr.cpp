@@ -167,7 +167,6 @@ void PlayerBotMgr::Load()
         sWorldBotTravelEditor->CheckAllTravelPaths();
         sWorldBotChat.LoadPlayerChat();
         WorldBotLoadAreaPOI();
-        //WorldBotLoadGrindProfiles();
         WorldBotLoadGrindQuests();
 
         // Load db characters
@@ -2907,44 +2906,6 @@ void PlayerBotMgr::WorldBotLoadAreaPOI()
         } while (result->NextRow());
     }
 }
-
-/*void PlayerBotMgr::WorldBotLoadGrindProfiles()
-{
-    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "Loading grind profiles...");
-    m_grindProfiles.clear();
-
-    std::unique_ptr<QueryResult> result(WorldDatabase.Query(
-        "SELECT Guid, FileName, HotSpots, EntryTarget, MaxLevel, MinLevel, QuestType, Faction, MapId "
-        "FROM worldbot_easy_quest_profiles "
-        "WHERE QuestType = 'KillAndLoot' AND HotSpots != '' AND HotSpots IS NOT NULL "
-        "AND EntryTarget != '' AND EntryTarget IS NOT NULL"
-    ));
-
-    if (!result)
-    {
-        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "No grind profiles found in the database.");
-        return;
-    }
-
-    do
-    {
-        Field* fields = result->Fetch();
-        WorldBotGrindProfile profile;
-        profile.guid = fields[0].GetUInt32();
-        profile.fileName = fields[1].GetCppString();
-        profile.hotSpots = fields[2].GetCppString();
-        profile.entryTarget = fields[3].GetCppString();
-        profile.maxLevel = fields[4].GetUInt32();
-        profile.minLevel = fields[5].GetUInt32();
-        profile.questType = fields[6].GetCppString();
-        profile.faction = fields[7].GetCppString();
-        profile.mapId = fields[8].GetUInt32();
-
-        m_grindProfiles.push_back(profile);
-    } while (result->NextRow());
-
-    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "Loaded %u grind profiles.", m_grindProfiles.size());
-}*/
 
 void PlayerBotMgr::WorldBotLoadGrindQuests()
 {
