@@ -7,20 +7,6 @@
 #include "Creature.h"
 #include <cmath>
 
-/*struct GrindQuestInfo {
-    uint32 questId;
-    std::string title;
-    uint32 level;
-    std::string faction;
-    uint32 creatureId;
-    std::string creatureName;
-    uint32 mapId;
-    float avgPosX;
-    float avgPosY;
-    float avgPosZ;
-    uint32 spawnCount;
-};*/
-
 extern std::vector<GrindQuestInfo> grindQuests;
 
 bool WorldBotAI::CanPerformGrind() const
