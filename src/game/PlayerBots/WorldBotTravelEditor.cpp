@@ -343,7 +343,7 @@ void WorldBotTravelEditor::CheckAllTravelPaths()
 
         // Check for extremely long paths
         float pathLength = std::sqrt(std::pow(path.x, 2) + std::pow(path.y, 2) + std::pow(path.z, 2));
-        if (pathLength > 10000.0f) // Adjust this threshold as needed
+        if (pathLength > 20000.0f) // Adjust this threshold as needed
         {
             sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "Unusually long path detected: from node %u to %u, length: %.2f", path.nodeId, path.toNodeId, pathLength);
         }
