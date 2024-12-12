@@ -227,6 +227,8 @@ bool WorldBotTaskManager::IsTaskLevelAppropriate(uint8 taskId, uint8 botLevel) c
 
 void WorldBotAI::OnTaskComplete(uint8 completedTaskId)
 {
+    ClearPath();
+
     switch (completedTaskId)
     {
     case TASK_EXPLORE:
@@ -236,7 +238,6 @@ void WorldBotAI::OnTaskComplete(uint8 completedTaskId)
         DestCoordinatesY = 0.0f;
         DestCoordinatesZ = 0.0f;
         DestMap = 0;
-        ClearPath();
         break;
     case TASK_DUAL:
         m_inDuelPosition = false;
