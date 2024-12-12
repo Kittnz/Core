@@ -80,6 +80,11 @@ public:
     uint32 map;
     float orientation;
     uint8 level;
+
+    // Add operator== for comparison
+    bool operator==(const WorldBotsCollection& other) const {
+        return guid == other.guid;
+    }
 };
 
 class WorldBotsAreaPOI

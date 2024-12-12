@@ -2544,51 +2544,97 @@ void PlayerBotMgr::WorldBotCreator()
 
     auto selectBotsByLevel = [&](std::vector<WorldBotsCollection>& bots, uint32 maxCount) {
         std::vector<WorldBotsCollection> selectedBots;
+        if (bots.empty()) return selectedBots;
+
+        // Special case for single bot selection
         if (maxCount == 1) {
-            // If we only need one bot, select it randomly from all available bots
-            if (!bots.empty()) {
-                uint32 randomIndex = urand(0, bots.size() - 1);
-                selectedBots.push_back(bots[randomIndex]);
+            uint32 randomIndex = urand(0, bots.size() - 1);
+            selectedBots.push_back(bots[randomIndex]);
+            return selectedBots;
+        }
+
+        // Calculate actual total percentage to avoid rounding errors
+        float totalPercentage = 0.0f;
+        for (const auto& range : levelRanges) {
+            totalPercentage += range.percentage;
+        }
+
+        // Normalize percentages if they don't sum to 1.0
+        float normalizer = totalPercentage > 0.0f ? 1.0f / totalPercentage : 1.0f;
+
+        // Process each level range
+        uint32 totalSelected = 0;
+        for (const auto& range : levelRanges) {
+            if (totalSelected >= maxCount)
+                break;
+
+            // Get bots in current level range
+            std::vector<WorldBotsCollection> rangeBots;
+            std::copy_if(bots.begin(), bots.end(), std::back_inserter(rangeBots),
+                [&](const WorldBotsCollection& bot) {
+                    return bot.level >= range.minLevel && bot.level <= range.maxLevel;
+                });
+
+            if (rangeBots.empty())
+                continue;
+
+            // Calculate how many bots to select from this range
+            float normalizedPercentage = range.percentage * normalizer;
+            uint32 rangeCount = std::max(1u, static_cast<uint32>(maxCount * normalizedPercentage));
+            rangeCount = std::min(rangeCount, maxCount - totalSelected);
+            rangeCount = std::min(rangeCount, static_cast<uint32>(rangeBots.size()));
+
+            // Randomly select bots from this range
+            std::random_shuffle(rangeBots.begin(), rangeBots.end());
+            for (uint32 i = 0; i < rangeCount; ++i) {
+                selectedBots.push_back(rangeBots[i]);
+                totalSelected++;
             }
         }
-        else {
-            for (const auto& range : levelRanges) {
-                uint32 botsInRange = std::count_if(bots.begin(), bots.end(), [&](const WorldBotsCollection& bot) {
-                    return bot.level >= range.minLevel && bot.level <= range.maxLevel;
-                    });
-                uint32 botsToSelect = std::min(static_cast<uint32>(maxCount * range.percentage), botsInRange);
 
-                std::vector<WorldBotsCollection> rangeBots;
-                std::copy_if(bots.begin(), bots.end(), std::back_inserter(rangeBots), [&](const WorldBotsCollection& bot) {
-                    return bot.level >= range.minLevel && bot.level <= range.maxLevel;
-                    });
+        // If we still haven't selected enough bots, fill remaining slots randomly
+        if (totalSelected < maxCount) {
+            std::vector<WorldBotsCollection> remainingBots;
+            std::copy_if(bots.begin(), bots.end(), std::back_inserter(remainingBots),
+                [&](const WorldBotsCollection& bot) {
+                    return std::find(selectedBots.begin(), selectedBots.end(), bot) == selectedBots.end();
+                });
 
-                std::random_shuffle(rangeBots.begin(), rangeBots.end());
-                selectedBots.insert(selectedBots.end(), rangeBots.begin(), rangeBots.begin() + botsToSelect);
+            std::random_shuffle(remainingBots.begin(), remainingBots.end());
+            uint32 remainingCount = std::min(maxCount - totalSelected, static_cast<uint32>(remainingBots.size()));
+
+            for (uint32 i = 0; i < remainingCount; ++i) {
+                selectedBots.push_back(remainingBots[i]);
             }
         }
+
         return selectedBots;
         };
 
+    // Select and add Horde bots
     auto hordeBotsToAdd = selectBotsByLevel(myHordeBots, worldBotHordeMax);
-    auto allianceBotsToAdd = selectBotsByLevel(myAllianceBots, worldBotAllianceMax);
-
     for (const auto& bot : hordeBotsToAdd) {
         if (worldBotHordeCount >= worldBotHordeMax)
             break;
 
-        WorldBotAdd(bot.guid, bot.account, bot.race, bot.class_, bot.pos_x, bot.pos_y, bot.pos_z, bot.orientation, bot.map);
-        sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBot: Add horde bot %s with guid: %u account: %u", bot.name.c_str(), bot.guid, bot.account);
-        worldBotHordeCount++;
+        if (WorldBotAdd(bot.guid, bot.account, bot.race, bot.class_, bot.pos_x, bot.pos_y, bot.pos_z, bot.orientation, bot.map)) {
+            sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBot: Add horde bot %s with guid: %u account: %u level: %u",
+                bot.name.c_str(), bot.guid, bot.account, bot.level);
+            worldBotHordeCount++;
+        }
     }
 
+    // Select and add Alliance bots
+    auto allianceBotsToAdd = selectBotsByLevel(myAllianceBots, worldBotAllianceMax);
     for (const auto& bot : allianceBotsToAdd) {
         if (worldBotAllianceCount >= worldBotAllianceMax)
             break;
 
-        WorldBotAdd(bot.guid, bot.account, bot.race, bot.class_, bot.pos_x, bot.pos_y, bot.pos_z, bot.orientation, bot.map);
-        sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBot: Add alliance bot %s with guid: %u account: %u", bot.name.c_str(), bot.guid, bot.account);
-        worldBotAllianceCount++;
+        if (WorldBotAdd(bot.guid, bot.account, bot.race, bot.class_, bot.pos_x, bot.pos_y, bot.pos_z, bot.orientation, bot.map)) {
+            sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBot: Add alliance bot %s with guid: %u account: %u level: %u",
+                bot.name.c_str(), bot.guid, bot.account, bot.level);
+            worldBotAllianceCount++;
+        }
     }
 
     sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBot: Loaded %u horde bots and %u alliance bots", worldBotHordeCount, worldBotAllianceCount);
@@ -2864,7 +2910,8 @@ void PlayerBotMgr::WorldBotBalancer(uint32 diff)
         sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotBalancer: Total available bots - Horde: %zu, Alliance: %zu",
             myHordeBots.size(), myAllianceBots.size());
 
-        m_BalanceTimer.Reset(60000); // 1 minute
+
+        m_BalanceTimer.Reset(60000);
     }
 }
 
