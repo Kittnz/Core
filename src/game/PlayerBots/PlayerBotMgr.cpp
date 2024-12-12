@@ -2826,79 +2826,97 @@ void PlayerBotMgr::WorldBotBalancer(uint32 diff)
         uint32 desiredHordeBots = sWorld.getConfig(CONFIG_UINT32_WORLDBOT_HORDE_MAX);
         uint32 desiredAllianceBots = sWorld.getConfig(CONFIG_UINT32_WORLDBOT_ALLIANCE_MAX);
 
-        // Count current active bots
+        // Create vectors to store currently active bots
+        std::vector<uint32> activeHordeBots;
+        std::vector<uint32> activeAllianceBots;
+
+        // Count current active bots and store their GUIDs
         for (const auto& pair : m_bots)
         {
             if (pair.second->state == PB_STATE_ONLINE)
             {
                 if (pair.second->ai && dynamic_cast<WorldBotAI*>(pair.second->ai.get()))
                 {
-                    Player* player = sObjectMgr.GetPlayer(pair.second->playerGUID);
-                    if (player)
+                    if (Player* player = sObjectMgr.GetPlayer(pair.second->playerGUID))
                     {
                         if (player->GetTeam() == HORDE)
+                        {
                             currentHordeBots++;
+                            activeHordeBots.push_back(player->GetGUIDLow());
+                        }
                         else
+                        {
                             currentAllianceBots++;
+                            activeAllianceBots.push_back(player->GetGUIDLow());
+                        }
                     }
                 }
             }
         }
 
-        // Add more bots if needed
-        if (currentHordeBots < desiredHordeBots)
+        // Filter available bots to exclude already active ones
+        auto filterActiveBots = [](std::vector<WorldBotsCollection>& availableBots, const std::vector<uint32>& activeBots) {
+            availableBots.erase(
+                std::remove_if(availableBots.begin(), availableBots.end(),
+                    [&activeBots](const WorldBotsCollection& bot) {
+                        return std::find(activeBots.begin(), activeBots.end(), bot.guid) != activeBots.end();
+                    }),
+                availableBots.end()
+            );
+            };
+
+        // Create copies of available bots for filtering
+        std::vector<WorldBotsCollection> availableHordeBots = myHordeBots;
+        std::vector<WorldBotsCollection> availableAllianceBots = myAllianceBots;
+
+        // Remove active bots from available pools
+        filterActiveBots(availableHordeBots, activeHordeBots);
+        filterActiveBots(availableAllianceBots, activeAllianceBots);
+
+        // Add more Horde bots if needed
+        if (currentHordeBots < desiredHordeBots && !availableHordeBots.empty())
         {
             uint32 botsToAdd = desiredHordeBots - currentHordeBots;
-            for (uint32 i = 0; i < botsToAdd && !myHordeBots.empty(); ++i)
+            // Randomly shuffle available bots
+            std::random_shuffle(availableHordeBots.begin(), availableHordeBots.end());
+
+            for (uint32 i = 0; i < botsToAdd && i < availableHordeBots.size(); ++i)
             {
-                WorldBotsCollection bot = myHordeBots.front();
-                myHordeBots.erase(myHordeBots.begin());
-
-                // Check if the bot is already in the system and its state
-                auto existingBot = m_bots.find(bot.guid);
-                if (existingBot != m_bots.end() && existingBot->second->state != PB_STATE_OFFLINE)
-                {
-                    sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "WorldBotBalancer: Bot %s (GUID: %u) is already in state %d. Skipping.",
-                        bot.name.c_str(), bot.guid, existingBot->second->state);
-                    continue;
-                }
-
+                const auto& bot = availableHordeBots[i];
                 if (WorldBotAdd(bot.guid, bot.account, bot.race, bot.class_, bot.pos_x, bot.pos_y, bot.pos_z, bot.orientation, bot.map))
                 {
-                    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotBalancer: Added Horde bot %s", bot.name.c_str());
+                    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotBalancer: Added Horde bot %s (Level %u)",
+                        bot.name.c_str(), bot.level);
+                    currentHordeBots++;
                 }
                 else
                 {
-                    sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "WorldBotBalancer: Failed to add Horde bot %s", bot.name.c_str());
+                    sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "WorldBotBalancer: Failed to add Horde bot %s",
+                        bot.name.c_str());
                 }
             }
         }
 
-        // Repeat the same process for Alliance bots
-        if (currentAllianceBots < desiredAllianceBots)
+        // Add more Alliance bots if needed
+        if (currentAllianceBots < desiredAllianceBots && !availableAllianceBots.empty())
         {
             uint32 botsToAdd = desiredAllianceBots - currentAllianceBots;
-            for (uint32 i = 0; i < botsToAdd && !myAllianceBots.empty(); ++i)
+            // Randomly shuffle available bots
+            std::random_shuffle(availableAllianceBots.begin(), availableAllianceBots.end());
+
+            for (uint32 i = 0; i < botsToAdd && i < availableAllianceBots.size(); ++i)
             {
-                WorldBotsCollection bot = myAllianceBots.front();
-                myAllianceBots.erase(myAllianceBots.begin());
-
-                // Check if the bot is already in the system and its state
-                auto existingBot = m_bots.find(bot.guid);
-                if (existingBot != m_bots.end() && existingBot->second->state != PB_STATE_OFFLINE)
-                {
-                    sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "WorldBotBalancer: Bot %s (GUID: %u) is already in state %d. Skipping.",
-                        bot.name.c_str(), bot.guid, existingBot->second->state);
-                    continue;
-                }
-
+                const auto& bot = availableAllianceBots[i];
                 if (WorldBotAdd(bot.guid, bot.account, bot.race, bot.class_, bot.pos_x, bot.pos_y, bot.pos_z, bot.orientation, bot.map))
                 {
-                    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotBalancer: Added Alliance bot %s", bot.name.c_str());
+                    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotBalancer: Added Alliance bot %s (Level %u)",
+                        bot.name.c_str(), bot.level);
+                    currentAllianceBots++;
                 }
                 else
                 {
-                    sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "WorldBotBalancer: Failed to add Alliance bot %s", bot.name.c_str());
+                    sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "WorldBotBalancer: Failed to add Alliance bot %s",
+                        bot.name.c_str());
                 }
             }
         }
@@ -2906,10 +2924,9 @@ void PlayerBotMgr::WorldBotBalancer(uint32 diff)
         sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotBalancer: Current bot count - Horde: %u/%u, Alliance: %u/%u",
             currentHordeBots, desiredHordeBots, currentAllianceBots, desiredAllianceBots);
 
-        // Log total available bots
-        sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotBalancer: Total available bots - Horde: %zu, Alliance: %zu",
-            myHordeBots.size(), myAllianceBots.size());
-
+        // Log remaining available bots
+        sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotBalancer: Remaining available bots - Horde: %zu, Alliance: %zu",
+            availableHordeBots.size(), availableAllianceBots.size());
 
         m_BalanceTimer.Reset(60000);
     }

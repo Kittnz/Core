@@ -1049,7 +1049,7 @@ void WorldBotAI::UpdateAI(uint32 const diff)
     if (m_randomTaskTimer.Passed())
     {
         SetRandomTask();
-        m_randomTaskTimer.Reset(5 * MINUTE * IN_MILLISECONDS); // change random task everye 5 min
+        m_randomTaskTimer.Reset(5 * MINUTE * IN_MILLISECONDS); // change random task every 5 min
     }
 
     // Reset bot spell data on learning new spells. 
