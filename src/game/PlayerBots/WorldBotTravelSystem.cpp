@@ -585,6 +585,17 @@ bool WorldBotAI::StartNewPathToSpecificDestination(float x, float y, float z, ui
         return false;
     }
 
+    // If we're already at our grind destination, no need for a path
+    if (m_taskManager.GetCurrentTaskId() == TASK_GRIND)
+    {
+        float distToGrindSpot = me->GetDistance(x, y, z);
+        if (distToGrindSpot <= m_grindRadius)
+        {
+            m_isAtGrindDestination = true;
+            return true;
+        }
+    }
+
     // Try to find a path without flight paths first
     m_currentPath = sWorldBotTravelSystem.FindPath(startNode->id, endNode->id, isCorpseRun, false);
 
@@ -596,26 +607,36 @@ bool WorldBotAI::StartNewPathToSpecificDestination(float x, float y, float z, ui
 
     if (m_currentPath.empty())
     {
-        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "WorldBotAI: Unable to find path for bot %s, teleporting to nearest graveyard.", me->GetName());
-
-        // Get nearest graveyard.
-        WorldSafeLocsEntry const* ClosestGrave = sObjectMgr.GetClosestGraveYard(me->GetPositionX(), me->GetPositionY(), me->GetPositionZ(), me->GetMapId(), me->GetTeam());
-        if (!ClosestGrave) //No nearby graveyards (stuck in void?). Send ally to Westfall, Horde to Barrens.
-            ClosestGrave = me->GetTeamId() ? sWorldSafeLocsStore.LookupEntry(10) : sWorldSafeLocsStore.LookupEntry(4);
-
-        if (ClosestGrave)
-            me->TeleportTo(ClosestGrave->map_id, ClosestGrave->x, ClosestGrave->y, ClosestGrave->z, sObjectMgr.GetWorldSafeLocFacing(ClosestGrave->ID), 0);
-
-        if (isCorpseRun)
+        // Handle empty path differently for grind tasks
+        if (m_taskManager.GetCurrentTaskId() == TASK_GRIND)
         {
-            sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "WorldBotAI: Resurrecting bot %s, we can't find a path to corpse.", me->GetName());
-            me->ResurrectPlayer(0.5f);
-            me->SpawnCorpseBones();
-            me->CastSpell(me, WB_SPELL_HONORLESS_TARGET, true);
-            m_isRunningToCorpse = false;
+            // For grind tasks, try direct movement if pathing fails
+            me->GetMotionMaster()->MovePoint(0, x, y, z, MOVE_PATHFINDING);
+            return true;
         }
+        else
+        {
+            sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "WorldBotAI: Unable to find path for bot %s, teleporting to nearest graveyard.", me->GetName());
 
-        return false;
+            // Get nearest graveyard.
+            WorldSafeLocsEntry const* ClosestGrave = sObjectMgr.GetClosestGraveYard(me->GetPositionX(), me->GetPositionY(), me->GetPositionZ(), me->GetMapId(), me->GetTeam());
+            if (!ClosestGrave) //No nearby graveyards (stuck in void?). Send ally to Westfall, Horde to Barrens.
+                ClosestGrave = me->GetTeamId() ? sWorldSafeLocsStore.LookupEntry(10) : sWorldSafeLocsStore.LookupEntry(4);
+
+            if (ClosestGrave)
+                me->TeleportTo(ClosestGrave->map_id, ClosestGrave->x, ClosestGrave->y, ClosestGrave->z, sObjectMgr.GetWorldSafeLocFacing(ClosestGrave->ID), 0);
+
+            if (isCorpseRun)
+            {
+                sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "WorldBotAI: Resurrecting bot %s, we can't find a path to corpse.", me->GetName());
+                me->ResurrectPlayer(0.5f);
+                me->SpawnCorpseBones();
+                me->CastSpell(me, WB_SPELL_HONORLESS_TARGET, true);
+                m_isRunningToCorpse = false;
+            }
+
+            return false;
+        }
     }
 
     // Add the final destination point if it's not exactly at a node
@@ -813,10 +834,10 @@ void WorldBotAI::MovementInform(uint32 movementType, uint32 data)
                 // Implement fallback behavior here
             }
         }
-        else
+        /*else
         {
             sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "WorldBotAI: Unexpected movement point reached for bot %s", me->GetName());
-        }
+        }*/
     }
 }
 

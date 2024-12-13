@@ -14,8 +14,9 @@ bool WorldBotAI::CanPerformGrind() const
     std::string botName = me->GetName();
     std::transform(botName.begin(), botName.end(), botName.begin(), ::tolower);
 
-    return m_taskManager.IsTaskLevelAppropriate(TASK_GRIND, me->GetLevel()) &&
-        !me->IsInCombat() && botName.find("bank") == std::string::npos;
+    /*return m_taskManager.IsTaskLevelAppropriate(TASK_GRIND, me->GetLevel()) &&
+        !me->IsInCombat() && botName.find("bank") == std::string::npos;*/
+    return true;
 }
 
 void WorldBotAI::StartGrinding()
@@ -26,6 +27,8 @@ void WorldBotAI::StartGrinding()
     // Reset previous grinding state
     m_grindEntryTarget = 0;
     m_grindMaxLevel = 0;
+    m_isAtGrindDestination = false;
+    m_grindRadius = VISIBILITY_DISTANCE_NORMAL;
 
     if (!SetGrindDestination())
     {
@@ -45,7 +48,7 @@ void WorldBotAI::StartGrinding()
 
 bool WorldBotAI::IsGrindingComplete() const
 {
-    return me->GetLevel() > m_grindMaxLevel + 1;
+    return me->GetLevel() > m_grindMaxLevel + 4;
 }
 
 bool WorldBotAI::SetGrindDestination()
@@ -138,8 +141,9 @@ void WorldBotAI::UpdateGrindingBehavior()
 
     // Check if we're at the grind destination
     float distanceToDestination = me->GetDistance(m_grindDestination.x, m_grindDestination.y, m_grindDestination.z);
-    if (distanceToDestination <= 5.0f)
+    if (distanceToDestination <= m_grindRadius)
     {
+        m_isAtGrindDestination = true;
         // Look for target to attack
         if (Unit* target = FindNearestCreatureToGrind())
         {
@@ -149,6 +153,7 @@ void WorldBotAI::UpdateGrindingBehavior()
     }
     else if (!me->IsMoving() && !me->IsTaxiFlying())
     {
+        m_isAtGrindDestination = false;
         // Resume movement to grind destination
         StartNewPathToSpecificDestination(m_grindDestination.x, m_grindDestination.y, m_grindDestination.z, me->GetMapId(), false);
     }
@@ -156,7 +161,7 @@ void WorldBotAI::UpdateGrindingBehavior()
 
 Unit* WorldBotAI::FindNearestCreatureToGrind()
 {
-    float searchRange = 40.0f;
+    float searchRange = m_grindRadius;
     Unit* nearestTarget = nullptr;
     float nearestDistance = searchRange;
 

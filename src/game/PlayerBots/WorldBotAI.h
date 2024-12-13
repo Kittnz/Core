@@ -277,8 +277,6 @@ public:
     bool CanPerformGrind() const;
     void StartGrinding();
     bool IsGrindingComplete() const;
-
-    // Grind quest management
   
     // Grinding behavior
     void RegisterGrindTask();
@@ -291,6 +289,7 @@ public:
     bool m_isAtGrindDestination;
     uint32 m_grindEntryTarget;
     uint32 m_grindMaxLevel;
+    float m_grindRadius;
 
     // Dual task methods
     bool CanPerformDual() const;

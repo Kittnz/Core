@@ -2774,21 +2774,21 @@ bool ChatHandler::HandleWorldBotInfoCommand(char* args)
 
     if (!botAI->m_currentPath.empty())
     {
-        size_t totalNodes = botAI->m_currentPath.size();
-        size_t remainingNodes = totalNodes - botAI->m_currentPathIndex;
+        size_t totalPoints = botAI->m_currentPath.size();
+        size_t remainingPathPoints = totalPoints - botAI->m_currentPathIndex;
 
         PSendSysMessage("Current Path Information:");
-        PSendSysMessage("Total Nodes: %zu", totalNodes);
-        PSendSysMessage("Remaining Nodes: %zu", remainingNodes);
+        PSendSysMessage("Total Points: %zu", totalPoints);
+        PSendSysMessage("Remaining Path Points: %zu", remainingPathPoints);
 
-        if (botAI->m_currentPathIndex < totalNodes)
+        if (botAI->m_currentPathIndex < totalPoints)
         {
             const TravelPath& nextNode = botAI->m_currentPath[botAI->m_currentPathIndex];
             PSendSysMessage("Next Node: %u (%.2f, %.2f, %.2f)",
                 nextNode.nodeId, nextNode.x, nextNode.y, nextNode.z);
 
             PSendSysMessage("Upcoming Nodes (up to 5):");
-            for (size_t i = botAI->m_currentPathIndex; i < std::min(botAI->m_currentPathIndex + 5, totalNodes); ++i)
+            for (size_t i = botAI->m_currentPathIndex; i < std::min(botAI->m_currentPathIndex + 5, totalPoints); ++i)
             {
                 const TravelPath& node = botAI->m_currentPath[i];
                 PSendSysMessage("  Node %zu: %u (%.2f, %.2f, %.2f)",
@@ -2991,11 +2991,11 @@ void PlayerBotMgr::WorldBotLoadGrindQuests()
                 WHEN qt.ReqCreatureOrGOId4 > 0 THEN qt.ReqCreatureOrGOId4
             END AS creature_id,
             ct.name AS creature_name,
-            c.map AS map_id,
-            ROUND(AVG(c.position_x), 2) AS avg_position_x,
-            ROUND(AVG(c.position_y), 2) AS avg_position_y,
-            ROUND(AVG(c.position_z), 2) AS avg_position_z,
-            COUNT(*) as spawn_count
+            c_closest.map AS map_id,
+            ROUND(c_closest.position_x, 2) as central_position_x,
+            ROUND(c_closest.position_y, 2) as central_position_y,
+            ROUND(c_closest.position_z, 2) as central_position_z,
+            center.spawn_count
         FROM quest_template qt
         JOIN creature_template ct ON (
             ct.entry = qt.ReqCreatureOrGOId1 OR 
@@ -3003,15 +3003,58 @@ void PlayerBotMgr::WorldBotLoadGrindQuests()
             ct.entry = qt.ReqCreatureOrGOId3 OR 
             ct.entry = qt.ReqCreatureOrGOId4
         )
-        JOIN creature c ON ct.entry = c.id
-        WHERE (
-            qt.ReqCreatureOrGOId1 > 0 OR 
-            qt.ReqCreatureOrGOId2 > 0 OR 
-            qt.ReqCreatureOrGOId3 > 0 OR 
-            qt.ReqCreatureOrGOId4 > 0
-        ) AND c.map IN (0, 1)
-        GROUP BY qt.entry, ct.entry
-        HAVING COUNT(*) > 1
+        JOIN (
+            -- Calculate center points and spawn counts
+            SELECT 
+                qt2.entry as quest_id,
+                CASE 
+                    WHEN qt2.ReqCreatureOrGOId1 > 0 THEN qt2.ReqCreatureOrGOId1
+                    WHEN qt2.ReqCreatureOrGOId2 > 0 THEN qt2.ReqCreatureOrGOId2
+                    WHEN qt2.ReqCreatureOrGOId3 > 0 THEN qt2.ReqCreatureOrGOId3
+                    WHEN qt2.ReqCreatureOrGOId4 > 0 THEN qt2.ReqCreatureOrGOId4
+                END AS creature_id,
+                AVG(c.position_x) as avg_x,
+                AVG(c.position_y) as avg_y,
+                AVG(c.position_z) as avg_z,
+                COUNT(*) as spawn_count
+            FROM quest_template qt2
+            JOIN creature_template ct2 ON (
+                ct2.entry = qt2.ReqCreatureOrGOId1 OR 
+                ct2.entry = qt2.ReqCreatureOrGOId2 OR 
+                ct2.entry = qt2.ReqCreatureOrGOId3 OR 
+                ct2.entry = qt2.ReqCreatureOrGOId4
+            )
+            JOIN creature c ON ct2.entry = c.id
+            WHERE (
+                qt2.ReqCreatureOrGOId1 > 0 OR 
+                qt2.ReqCreatureOrGOId2 > 0 OR 
+                qt2.ReqCreatureOrGOId3 > 0 OR 
+                qt2.ReqCreatureOrGOId4 > 0
+            ) AND c.map IN (0, 1)
+            GROUP BY qt2.entry, creature_id
+            HAVING COUNT(*) > 10
+        ) center ON center.quest_id = qt.entry 
+            AND center.creature_id = CASE 
+                WHEN qt.ReqCreatureOrGOId1 > 0 THEN qt.ReqCreatureOrGOId1
+                WHEN qt.ReqCreatureOrGOId2 > 0 THEN qt.ReqCreatureOrGOId2
+                WHEN qt.ReqCreatureOrGOId3 > 0 THEN qt.ReqCreatureOrGOId3
+                WHEN qt.ReqCreatureOrGOId4 > 0 THEN qt.ReqCreatureOrGOId4
+            END
+        JOIN creature c_closest ON ct.entry = c_closest.id 
+            AND c_closest.map IN (0, 1)
+            AND (
+                POW(c_closest.position_x - center.avg_x, 2) +
+                POW(c_closest.position_y - center.avg_y, 2) +
+                POW(c_closest.position_z - center.avg_z, 2)
+            ) <= ALL (
+                SELECT 
+                    POW(c2.position_x - center.avg_x, 2) +
+                    POW(c2.position_y - center.avg_y, 2) +
+                    POW(c2.position_z - center.avg_z, 2)
+                FROM creature c2 
+                WHERE c2.id = ct.entry 
+                AND c2.map IN (0, 1)
+            )
         ORDER BY qt.QuestLevel;
     )");
 
