@@ -824,16 +824,16 @@ void World::LoadConfigSettings(bool reload)
 
     setConfig(CONFIG_UINT32_WORLDBOT_LEVEL_RANGE_1_MIN, "WorldBot.LevelRange1.Min", 1);
     setConfig(CONFIG_UINT32_WORLDBOT_LEVEL_RANGE_1_MAX, "WorldBot.LevelRange1.Max", 20);
-    setConfig(CONFIG_FLOAT_WORLDBOT_LEVEL_RANGE_1_PERCENT, "WorldBot.LevelRange1.Percent", 0.40);
+    setConfig(CONFIG_FLOAT_WORLDBOT_LEVEL_RANGE_1_PERCENT, "WorldBot.LevelRange1.Percent", 0.15);
     setConfig(CONFIG_UINT32_WORLDBOT_LEVEL_RANGE_2_MIN, "WorldBot.LevelRange1.Min", 21);
     setConfig(CONFIG_UINT32_WORLDBOT_LEVEL_RANGE_2_MAX, "WorldBot.LevelRange1.Max", 40);
-    setConfig(CONFIG_FLOAT_WORLDBOT_LEVEL_RANGE_2_PERCENT, "WorldBot.LevelRange1.Percent", 0.30);
+    setConfig(CONFIG_FLOAT_WORLDBOT_LEVEL_RANGE_2_PERCENT, "WorldBot.LevelRange1.Percent", 0.25);
     setConfig(CONFIG_UINT32_WORLDBOT_LEVEL_RANGE_3_MIN, "WorldBot.LevelRange1.Min", 41);
     setConfig(CONFIG_UINT32_WORLDBOT_LEVEL_RANGE_3_MAX, "WorldBot.LevelRange1.Max", 59);
-    setConfig(CONFIG_FLOAT_WORLDBOT_LEVEL_RANGE_3_PERCENT, "WorldBot.LevelRange1.Percent", 0.10);
+    setConfig(CONFIG_FLOAT_WORLDBOT_LEVEL_RANGE_3_PERCENT, "WorldBot.LevelRange1.Percent", 0.30);
     setConfig(CONFIG_UINT32_WORLDBOT_LEVEL_RANGE_4_MIN, "WorldBot.LevelRange1.Min", 60);
     setConfig(CONFIG_UINT32_WORLDBOT_LEVEL_RANGE_4_MAX, "WorldBot.LevelRange1.Max", 60);
-    setConfig(CONFIG_FLOAT_WORLDBOT_LEVEL_RANGE_4_PERCENT, "WorldBot.LevelRange1.Percent", 0.20);
+    setConfig(CONFIG_FLOAT_WORLDBOT_LEVEL_RANGE_4_PERCENT, "WorldBot.LevelRange1.Percent", 0.30);
 
     setConfig(CONFIG_BOOL_VISIBILITY_FORCE_ACTIVE_OBJECTS, "Visibility.ForceActiveObjects", true);
     m_relocation_ai_notify_delay = sConfig.GetIntDefault("Visibility.AIRelocationNotifyDelay", 1000u);

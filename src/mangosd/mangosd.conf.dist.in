@@ -3060,16 +3060,16 @@ ResetEmptyPasswords = true
 
 WorldBot.LevelRange1.Min = 1
 WorldBot.LevelRange1.Max = 20
-WorldBot.LevelRange1.Percent = 0.40
+WorldBot.LevelRange1.Percent = 0.15
 WorldBot.LevelRange2.Min = 21
 WorldBot.LevelRange2.Max = 40
-WorldBot.LevelRange2.Percent = 0.30
+WorldBot.LevelRange2.Percent = 0.25
 WorldBot.LevelRange3.Min = 41
 WorldBot.LevelRange3.Max = 59
-WorldBot.LevelRange3.Percent = 0.10
+WorldBot.LevelRange3.Percent = 0.30
 WorldBot.LevelRange4.Min = 60
 WorldBot.LevelRange4.Max = 60
-WorldBot.LevelRange4.Percent = 0.20
+WorldBot.LevelRange4.Percent = 0.30
 
 ###################################################################################################################
 #    Mail flooding mitigation
