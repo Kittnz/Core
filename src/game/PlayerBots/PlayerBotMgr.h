@@ -113,18 +113,16 @@ struct WorldBotGrindProfile {
     uint32 mapId;
 };
 
-struct GrindQuestInfo {
-    uint32 questId;
-    std::string title;
-    uint32 level;
-    std::string faction;
+struct GrindCreatureInfo {
     uint32 creatureId;
     std::string creatureName;
+    uint32 level;
     uint32 mapId;
-    float avgPosX;
-    float avgPosY;
-    float avgPosZ;
+    float position_x;
+    float position_y;
+    float position_z;
     uint32 spawnCount;
+    float clusterRadius;
 };
 
 class PlayerBotMgr
@@ -174,7 +172,7 @@ class PlayerBotMgr
         bool m_useWorldBotLoader = false;
         void WorldBotBalancer(uint32 diff);
         void WorldBotLoadAreaPOI();
-        void WorldBotLoadGrindQuests();
+        void WorldBotLoadGrindCreatures();
 
         ShortTimeTracker m_BotBalanceTimer;
         uint32 GetOnlineBotsCount(Team team) const;

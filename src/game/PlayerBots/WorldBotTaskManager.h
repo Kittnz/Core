@@ -27,6 +27,7 @@ struct WorldBotTask
     bool implemented;
     uint8 minLevel;
     uint8 maxLevel;
+    bool isInProgress;
 };
 
 class WorldBotTaskManager

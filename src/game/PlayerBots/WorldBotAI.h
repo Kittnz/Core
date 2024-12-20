@@ -290,6 +290,8 @@ public:
     uint32 m_grindEntryTarget;
     uint32 m_grindMaxLevel;
     float m_grindRadius;
+    uint32 m_grindTargetLevel;
+    const int MAX_GRIND_LEVEL_DIFFERENCE = 3;
 
     // Dual task methods
     bool CanPerformDual() const;

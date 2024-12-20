@@ -28,7 +28,7 @@ std::vector<WorldBotsCollection> myBots;
 std::vector<WorldBotsCollection> myHordeBots;
 std::vector<WorldBotsCollection> myAllianceBots;
 std::vector<WorldBotsAreaPOI> myAreaPOI;
-std::vector<GrindQuestInfo> grindQuests;
+std::vector<GrindCreatureInfo> grindCreatures;
 
 PlayerBotMgr::PlayerBotMgr()
 {
@@ -167,7 +167,7 @@ void PlayerBotMgr::Load()
         sWorldBotTravelEditor->CheckAllTravelPaths();
         sWorldBotChat.LoadPlayerChat();
         WorldBotLoadAreaPOI();
-        WorldBotLoadGrindQuests();
+        WorldBotLoadGrindCreatures();
 
         // Load db characters
         m_useWorldBotLoader = sWorld.getConfig(CONFIG_BOOL_WORLDBOT_LOADER);
@@ -2608,6 +2608,16 @@ void PlayerBotMgr::WorldBotCreator()
             }
         }
 
+        // Add debug logging
+        for (const auto& range : levelRanges) {
+            uint32 rangeCount = std::count_if(selectedBots.begin(), selectedBots.end(),
+                [&](const WorldBotsCollection& bot) {
+                    return bot.level >= range.minLevel && bot.level <= range.maxLevel;
+                });
+            sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBot: Selected %u bots for level range %u-%u (target: %.1f%%)",
+                rangeCount, range.minLevel, range.maxLevel, range.percentage * 100.0f);
+        }
+
         return selectedBots;
         };
 
@@ -2971,119 +2981,90 @@ void PlayerBotMgr::WorldBotLoadAreaPOI()
     }
 }
 
-void PlayerBotMgr::WorldBotLoadGrindQuests()
+void PlayerBotMgr::WorldBotLoadGrindCreatures()
 {
-    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "Loading grind quests...");
-    grindQuests.clear();
+    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "Loading grind creatures...");
+    grindCreatures.clear();
 
     std::unique_ptr<QueryResult> result = WorldDatabase.Query(R"(
         SELECT 
-            qt.entry AS quest_id,
-            qt.Title AS quest_title,
-            qt.QuestLevel AS quest_level,
-            CASE WHEN qt.RequiredRaces = 1 THEN 'Alliance'
-                 WHEN qt.RequiredRaces = 2 THEN 'Horde'
-                 ELSE 'Both' END AS faction,
-            CASE 
-                WHEN qt.ReqCreatureOrGOId1 > 0 THEN qt.ReqCreatureOrGOId1
-                WHEN qt.ReqCreatureOrGOId2 > 0 THEN qt.ReqCreatureOrGOId2
-                WHEN qt.ReqCreatureOrGOId3 > 0 THEN qt.ReqCreatureOrGOId3
-                WHEN qt.ReqCreatureOrGOId4 > 0 THEN qt.ReqCreatureOrGOId4
-            END AS creature_id,
+            ct.entry AS creature_id,
             ct.name AS creature_name,
-            c_closest.map AS map_id,
-            ROUND(c_closest.position_x, 2) as central_position_x,
-            ROUND(c_closest.position_y, 2) as central_position_y,
-            ROUND(c_closest.position_z, 2) as central_position_z,
-            center.spawn_count
-        FROM quest_template qt
-        JOIN creature_template ct ON (
-            ct.entry = qt.ReqCreatureOrGOId1 OR 
-            ct.entry = qt.ReqCreatureOrGOId2 OR 
-            ct.entry = qt.ReqCreatureOrGOId3 OR 
-            ct.entry = qt.ReqCreatureOrGOId4
-        )
+            ct.level_min AS level,
+            center_spawn.map_id,
+            center_spawn.position_x,
+            center_spawn.position_y,
+            center_spawn.position_z,
+            center_spawn.spawn_count,
+            center_spawn.cluster_radius
+        FROM creature_template ct
         JOIN (
-            -- Calculate center points and spawn counts
             SELECT 
-                qt2.entry as quest_id,
-                CASE 
-                    WHEN qt2.ReqCreatureOrGOId1 > 0 THEN qt2.ReqCreatureOrGOId1
-                    WHEN qt2.ReqCreatureOrGOId2 > 0 THEN qt2.ReqCreatureOrGOId2
-                    WHEN qt2.ReqCreatureOrGOId3 > 0 THEN qt2.ReqCreatureOrGOId3
-                    WHEN qt2.ReqCreatureOrGOId4 > 0 THEN qt2.ReqCreatureOrGOId4
-                END AS creature_id,
-                AVG(c.position_x) as avg_x,
-                AVG(c.position_y) as avg_y,
-                AVG(c.position_z) as avg_z,
-                COUNT(*) as spawn_count
-            FROM quest_template qt2
-            JOIN creature_template ct2 ON (
-                ct2.entry = qt2.ReqCreatureOrGOId1 OR 
-                ct2.entry = qt2.ReqCreatureOrGOId2 OR 
-                ct2.entry = qt2.ReqCreatureOrGOId3 OR 
-                ct2.entry = qt2.ReqCreatureOrGOId4
-            )
-            JOIN creature c ON ct2.entry = c.id
+                c_closest.id,
+                c_closest.map as map_id,
+                c_closest.position_x,
+                c_closest.position_y,
+                c_closest.position_z,
+                cluster_info.spawn_count,
+                cluster_info.cluster_radius,
+                cluster_info.center_x,
+                cluster_info.center_y
+            FROM creature c_closest
+            JOIN (
+                SELECT 
+                    c.id,
+                    COUNT(*) as spawn_count,
+                    AVG(c.position_x) as center_x,
+                    AVG(c.position_y) as center_y,
+                    SQRT(
+                        POW(MAX(c.position_x) - MIN(c.position_x), 2) + 
+                        POW(MAX(c.position_y) - MIN(c.position_y), 2)
+                    ) as cluster_radius
+                FROM creature c
+                WHERE c.id IN (6, 30, 36, 38, 52, 69, 92, 94, 113, 117, 118, 154, 157, 199, 205, 212, 213, 217, 257, 416, 423, 424, 428, 441, 454, 474, 480, 481, 500, 515, 524, 525, 533, 539, 547, 565, 569, 587, 589, 590, 597, 660, 667, 669, 670, 671, 674, 676, 677, 681, 682, 683, 684, 685, 686, 687, 689, 690, 694, 696, 697, 702, 712, 728, 729, 730, 731, 736, 740, 741, 747, 750, 751, 752, 756, 766, 767, 768, 772, 780, 782, 784, 822, 830, 832, 833, 834, 854, 856, 858, 861, 862, 891, 892, 898, 921, 923, 930, 950, 1007, 1008, 1009, 1010, 1011, 1017, 1018, 1019, 1020, 1021, 1032, 1033, 1039, 1042, 1043, 1069, 1082, 1084, 1085, 1087, 1088, 1095, 1096, 1097, 1108, 1109, 1114, 1142, 1144, 1150, 1251, 1400, 1417, 1488, 1489, 1490, 1491, 1501, 1502, 1504, 1505, 1506, 1507, 1508, 1509, 1512, 1513, 1514, 1520, 1522, 1523, 1525, 1526, 1529, 1532, 1535, 1536, 1537, 1538, 1543, 1544, 1545, 1547, 1548, 1553, 1554, 1555, 1557, 1561, 1563, 1564, 1565, 1662, 1664, 1667, 1674, 1675, 1753, 1765, 1766, 1769, 1770, 1779, 1780, 1781, 1782, 1783, 1784, 1787, 1789, 1791, 1793, 1796, 1797, 1815, 1816, 1817, 1821, 1822, 1824, 1826, 1831, 1833, 1835, 1865, 1866, 1867, 1868, 1869, 1870, 1884, 1888, 1889, 1890, 1907, 1908, 1910, 1912, 1914, 1919, 1923, 1924, 1939, 1940, 1941, 1953, 1955, 1957, 1958, 1971, 1972, 1973, 1974, 1983, 2243, 2244, 2245, 2246, 2247, 2248, 2249, 2250, 2251, 2252, 2253, 2260, 2261, 2271, 2272, 2318, 2332, 2348, 2349, 2350, 2351, 2354, 2356, 2358, 2359, 2384, 2385, 2406, 2407, 2408, 2411, 2412, 2413, 2414, 2415, 2505, 2534, 2535, 2536, 2537, 2546, 2548, 2550, 2552, 2554, 2555, 2556, 2559, 2560, 2561, 2562, 2563, 2564, 2565, 2566, 2567, 2572, 2573, 2574, 2578, 2579, 2580, 2581, 2582, 2586, 2587, 2589, 2595, 2596, 2649, 2650, 2651, 2652, 2656, 2657, 2659, 2680, 2686, 2691, 2692, 2693, 2694, 2701, 2715, 2717, 2723, 2727, 2728, 2729, 2731, 2732, 2734, 2735, 2736, 2739, 2740, 2742, 2743, 2751, 2829, 2830, 2831, 2893, 2894, 2906, 2907, 2923, 2924, 2925, 2926, 2927, 2928, 2929, 2944, 2949, 2950, 2951, 2952, 2953, 2954, 2955, 2956, 2957, 2958, 2959, 2960, 2961, 2966, 2967, 2969, 2970, 2971, 2989, 2990, 3035, 3098, 3099, 3100, 3101, 3102, 3103, 3104, 3106, 3108, 3110, 3111, 3112, 3113, 3114, 3116, 3117, 3118, 3121, 3122, 3123, 3124, 3125, 3126, 3127, 3128, 3129, 3130, 3131, 3183, 3192, 3197, 3198, 3203, 3205, 3206, 3207, 3225, 3226, 3227, 3231, 3234, 3236, 3238, 3239, 3240, 3241, 3242, 3243, 3244, 3245, 3246, 3247, 3248, 3249, 3250, 3251, 3254, 3255, 3256, 3257, 3258, 3260, 3261, 3263, 3265, 3266, 3267, 3268, 3269, 3271, 3272, 3273, 3274, 3275, 3276, 3277, 3278, 3280, 3281, 3283, 3286, 3374, 3375, 3376, 3377, 3378, 3381, 3382, 3385, 3386, 3392, 3393, 3394, 3397, 3415, 3416, 3424, 3425, 3426, 3434, 3435, 3436, 3438, 3445, 3452, 3454, 3455, 3456, 3457, 3458, 3459, 3461, 3463, 3466, 3467, 3471, 3475, 3566, 3711, 3713, 3715, 3717, 3745, 3746, 3748, 3749, 3765, 3767, 3770, 3771, 3782, 3789, 3791, 3809, 3810, 3817, 3818, 3819, 3820, 3823, 3824, 3825, 3834, 3917, 3919, 3924, 3925, 3928, 3939, 3944, 3988, 3989, 3991, 4005, 4006, 4007, 4009, 4011, 4012, 4013, 4014, 4017, 4018, 4020, 4022, 4023, 4024, 4025, 4026, 4027, 4028, 4029, 4031, 4032, 4034, 4035, 4036, 4037, 4038, 4041, 4042, 4044, 4051, 4053, 4054, 4057, 4067, 4073, 4074, 4093, 4094, 4095, 4096, 4097, 4111, 4112, 4114, 4117, 4118, 4119, 4120, 4124, 4126, 4127, 4128, 4129, 4130, 4131, 4133, 4139, 4140, 4142, 4143, 4144, 4147, 4150, 4151, 4154, 4202, 4248, 4249, 4260, 4316, 4323, 4324, 4328, 4329, 4331, 4334, 4341, 4343, 4344, 4346, 4348, 4351, 4352, 4357, 4359, 4362, 4376, 4378, 4379, 4382, 4385, 4401, 4403, 4404, 4412, 4414, 4466, 4467, 4479, 4480, 4481, 4500, 4504, 4505, 4548, 4634, 4635, 4636, 4638, 4640, 4641, 4642, 4645, 4646, 4647, 4648, 4649, 4661, 4663, 4664, 4665, 4666, 4668, 4670, 4671, 4672, 4673, 4674, 4675, 4676, 4677, 4679, 4680, 4682, 4685, 4688, 4689, 4690, 4692, 4693, 4694, 4696, 4697, 4699, 4700, 4701, 4711, 4712, 4713, 4714, 4723, 4726, 4727, 4728, 4729, 4834, 4841, 5057, 5229, 5232, 5234, 5236, 5237, 5238, 5239, 5240, 5241, 5244, 5245, 5246, 5247, 5249, 5251, 5253, 5258, 5260, 5262, 5268, 5272, 5274, 5276, 5278, 5286, 5287, 5288, 5292, 5293, 5295, 5299, 5300, 5304, 5305, 5306, 5307, 5308, 5362, 5363, 5364, 5366, 5419, 5420, 5421, 5422, 5423, 5424, 5425, 5426, 5427, 5428, 5429, 5430, 5455, 5456, 5457, 5465, 5471, 5472, 5474, 5475, 5477, 5481, 5485, 5490, 5600, 5615, 5616, 5617, 5618, 5622, 5623, 5766, 5839, 5840, 5844, 5846, 5850, 5852, 5854, 5855, 5856, 5858, 5860, 5861, 5979, 5982, 5983, 5984, 5985, 5988, 5990, 5991, 5992, 5993, 6073, 6115, 6116, 6117, 6125, 6126, 6127, 6135, 6136, 6139, 6190, 6193, 6194, 6195, 6196, 6198, 6199, 6348, 6352, 6370, 6371, 6375, 6378, 6379, 6380, 6505, 6506, 6507, 6508, 6509, 6510, 6511, 6512, 6513, 6514, 6516, 6517, 6520, 6521, 6527, 6551, 6552, 6553, 6556, 6557, 6559, 6649, 7039, 7097, 7098, 7100, 7101, 7106, 7109, 7110, 7112, 7113, 7115, 7125, 7132, 7139, 7153, 7154, 7155, 7156, 7157, 7158, 7438, 7439, 7440, 7441, 7442, 7443, 7444, 7445, 7447, 7448, 7449, 7450, 7451, 7452, 7453, 7454, 7455, 7457, 7458, 7459, 7460, 7584, 7668, 7725, 7726, 7727, 7847, 7855, 7856, 7857, 7858, 7864, 7883, 7977, 8075, 8299, 8520, 8521, 8526, 8531, 8534, 8538, 8541, 8543, 8548, 8554, 8566, 8596, 8597, 8598, 8600, 8601, 8602, 8603, 8605, 8667, 8675, 8759, 8761, 8764, 8766, 8956, 8957, 8959, 8961, 8977, 9163, 9164, 9166, 9167, 9318, 9377, 9454, 9464, 9477, 9622, 9683, 9684, 9916, 10580, 10605, 10617, 10759, 10760, 10761, 10801, 10806, 10807, 10882, 10896, 10979, 10992, 11075, 11076, 11077, 11078, 11559, 11561, 11562, 11563, 11576, 11577, 11611, 11613, 11697, 11735, 11736, 11737, 11738, 11739, 11740, 11741, 11744, 11858, 11910, 11911, 11912, 11921, 12046, 12178, 12179, 12248, 12250, 12369, 12579, 12677, 12678, 12759, 12856, 12940, 13019, 14232, 14460, 14621, 14661, 17207, 17300, 23554, 23555, 23864, 23873, 23979)
+                GROUP BY c.id
+                HAVING COUNT(*) > 4 
+                AND cluster_radius < 500
+            ) cluster_info ON c_closest.id = cluster_info.id
             WHERE (
-                qt2.ReqCreatureOrGOId1 > 0 OR 
-                qt2.ReqCreatureOrGOId2 > 0 OR 
-                qt2.ReqCreatureOrGOId3 > 0 OR 
-                qt2.ReqCreatureOrGOId4 > 0
-            ) AND c.map IN (0, 1)
-            GROUP BY qt2.entry, creature_id
-            HAVING COUNT(*) > 10
-        ) center ON center.quest_id = qt.entry 
-            AND center.creature_id = CASE 
-                WHEN qt.ReqCreatureOrGOId1 > 0 THEN qt.ReqCreatureOrGOId1
-                WHEN qt.ReqCreatureOrGOId2 > 0 THEN qt.ReqCreatureOrGOId2
-                WHEN qt.ReqCreatureOrGOId3 > 0 THEN qt.ReqCreatureOrGOId3
-                WHEN qt.ReqCreatureOrGOId4 > 0 THEN qt.ReqCreatureOrGOId4
-            END
-        JOIN creature c_closest ON ct.entry = c_closest.id 
-            AND c_closest.map IN (0, 1)
-            AND (
-                POW(c_closest.position_x - center.avg_x, 2) +
-                POW(c_closest.position_y - center.avg_y, 2) +
-                POW(c_closest.position_z - center.avg_z, 2)
+                POW(c_closest.position_x - cluster_info.center_x, 2) +
+                POW(c_closest.position_y - cluster_info.center_y, 2)
             ) <= ALL (
                 SELECT 
-                    POW(c2.position_x - center.avg_x, 2) +
-                    POW(c2.position_y - center.avg_y, 2) +
-                    POW(c2.position_z - center.avg_z, 2)
+                    POW(c2.position_x - cluster_info.center_x, 2) +
+                    POW(c2.position_y - cluster_info.center_y, 2)
                 FROM creature c2 
-                WHERE c2.id = ct.entry 
-                AND c2.map IN (0, 1)
+                WHERE c2.id = cluster_info.id
             )
-        ORDER BY qt.QuestLevel;
+        ) center_spawn ON center_spawn.id = ct.entry
+        WHERE center_spawn.map_id IN (0, 1)
+        ORDER BY ct.level_min;
     )");
 
     if (!result)
     {
-        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "Failed to load grind quests");
+        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "Failed to load grind creatures");
         return;
     }
 
     do
     {
         Field* fields = result->Fetch();
-        GrindQuestInfo quest;
+        GrindCreatureInfo creature;
 
-        quest.questId = fields[0].GetUInt32();
-        quest.title = fields[1].GetString();
-        quest.level = fields[2].GetUInt32();
-        quest.faction = fields[3].GetString();
-        quest.creatureId = fields[4].GetUInt32();
-        quest.creatureName = fields[5].GetString();
-        quest.mapId = fields[6].GetUInt32();
-        quest.avgPosX = fields[7].GetFloat();
-        quest.avgPosY = fields[8].GetFloat();
-        quest.avgPosZ = fields[9].GetFloat();
-        quest.spawnCount = fields[10].GetUInt32();
+        creature.creatureId = fields[0].GetUInt32();
+        creature.creatureName = fields[1].GetString();
+        creature.level = fields[2].GetUInt32();
+        creature.mapId = fields[3].GetUInt32();
+        creature.position_x = fields[4].GetFloat();
+        creature.position_y = fields[5].GetFloat();
+        creature.position_z = fields[6].GetFloat();
+        creature.spawnCount = fields[7].GetUInt32();
+        creature.clusterRadius = fields[8].GetFloat();
 
-        grindQuests.push_back(quest);
+        grindCreatures.push_back(creature);
 
     } while (result->NextRow());
 
-    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "Loaded %zu grind quests", grindQuests.size());
+    sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "Loaded %zu grind creatures", grindCreatures.size());
 }

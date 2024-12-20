@@ -562,6 +562,10 @@ bool WorldBotAI::StartNewPathToSpecificDestination(float x, float y, float z, ui
 {
     m_currentPath.clear();
     m_currentPathIndex = 0;
+    DestCoordinatesX = x;
+    DestCoordinatesY = y;
+    DestCoordinatesZ = z;
+    DestMap = mapId;
 
     std::string taskName = m_taskManager.GetCurrentTaskName();
     std::string actionType = isCorpseRun ? "Corpse Run" : (taskName != "None" ? taskName : "Unknown Action");
@@ -856,10 +860,10 @@ void WorldBotAI::OnPathComplete()
     {
         HandleSpecificDestinationCompletion();
     }
-    else if (m_taskManager.GetCurrentTaskId() == TASK_GRIND)
+    /*else if (m_taskManager.GetCurrentTaskId() == TASK_GRIND)
     {
         HandleGrindTaskCompletion();
-    }
+    }*/
     else if (m_taskManager.GetCurrentTaskId() == TASK_ROAM)
     {
         StartNewPathToNode();

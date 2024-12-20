@@ -26,6 +26,7 @@ void WorldBotTaskManager::StartTask(WorldBotTask* task)
     {
         m_currentTaskId = task->id;
         sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "WorldBotTaskManager: Starting task %s", task->name.c_str());
+        task->isInProgress = true;
         task->execute(m_bot);
     }
     else
@@ -191,6 +192,7 @@ void WorldBotTaskManager::CompleteCurrentTask()
     if (currentTask)
     {
         sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotTaskManager: Completing task %s", currentTask->name.c_str());
+        const_cast<WorldBotTask*>(currentTask)->isInProgress = false;
         m_bot->OnTaskComplete(m_currentTaskId);
         m_currentTaskId = TASK_NONE;
 
