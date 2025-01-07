@@ -108,7 +108,7 @@ public:
     WorldBotAI(uint8 race, uint8 class_, uint32 mapId, uint32 instanceId, float x, float y, float z, float o, bool isBattleBot, uint8 bgId)
         : CombatBotBaseAI(),  m_race(race), m_class(class_), m_mapId(mapId), m_instanceId(instanceId), m_x(x), m_y(y), m_z(z), m_o(o),
         m_isBattleBot(isBattleBot), m_battlegroundId(bgId), m_showPath(false), m_currentNodeId(0), m_currentPathIndex(0), m_isRunningToCorpse(false),
-        m_taskManager(this), m_isDualBotMovingToLocation(false)
+        m_taskManager(this), m_isDualBotMovingToLocation(false), m_failedPathAttempts(0), m_lastFailedX(0.0f), m_lastFailedY(0.0f), m_lastFailedZ(0.0f), m_lastFailedMap(0), m_hasPreviousFailure(false)
     {
         m_updateTimer.Reset(2 * IN_MILLISECONDS);
         m_updateMoveTimer.Reset(1 * IN_MILLISECONDS);
@@ -217,6 +217,7 @@ public:
     void HandleCorpseRunCompletion();
     void HandleSpecificDestinationCompletion();
     void HandleGrindTaskCompletion();
+    void ResetFailedPathAttempts() { m_failedPathAttempts = 0; }
 
     // Visual path and nodes
     void ShowCurrentPath();
@@ -291,7 +292,7 @@ public:
     uint32 m_grindMaxLevel;
     float m_grindRadius;
     uint32 m_grindTargetLevel;
-    const int MAX_GRIND_LEVEL_DIFFERENCE = 3;
+    const int MAX_GRIND_LEVEL_DIFFERENCE = 2;
 
     // Dual task methods
     bool CanPerformDual() const;
@@ -303,8 +304,40 @@ public:
     void SendDuelRequest(Player* target);
     ShortTimeTracker m_duelYellTimer;
 
+
+
 private:
     ShortTimeTracker m_updateChatTimer;
+    uint32 m_failedPathAttempts;  // Track number of failed path attempts
+    static const uint32 MAX_PATH_ATTEMPTS = 5;  // Maximum allowed attempts before teleporting
+
+    float m_lastFailedX;
+    float m_lastFailedY;
+    float m_lastFailedZ;
+    uint32 m_lastFailedMap;
+    bool m_hasPreviousFailure;
+
+    // Helper method to check if destination is same as previous failure
+    bool IsSameDestination(float x, float y, float z, uint32 mapId) const
+    {
+        if (!m_hasPreviousFailure)
+            return false;
+
+        float distance = std::sqrt(pow(x - m_lastFailedX, 2) +
+            pow(y - m_lastFailedY, 2) +
+            pow(z - m_lastFailedZ, 2));
+        return mapId == m_lastFailedMap && distance < 10.0f; // Consider locations within 10 yards as same
+    }
+
+    void UpdateFailedLocation(float x, float y, float z, uint32 mapId)
+    {
+        m_lastFailedX = x;
+        m_lastFailedY = y;
+        m_lastFailedZ = z;
+        m_lastFailedMap = mapId;
+        m_hasPreviousFailure = true;
+    }
+
 };
 
 #endif

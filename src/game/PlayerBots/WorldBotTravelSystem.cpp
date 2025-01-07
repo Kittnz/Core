@@ -513,6 +513,8 @@ uint32 WorldBotTravelSystem::GetRandomNodeId(uint32 mapId, uint32 startNodeId)
 
 void WorldBotAI::StartNewPathToNode()
 {
+    m_failedPathAttempts = 0;
+    m_hasPreviousFailure = false;
     m_isSpecificDestinationPath = false;
     m_currentPath.clear();
     m_currentPathIndex = 0;
@@ -894,9 +896,14 @@ void WorldBotAI::HandleCorpseRunCompletion()
 void WorldBotAI::HandleSpecificDestinationCompletion()
 {
     float distanceToDestination = me->GetDistance(DestCoordinatesX, DestCoordinatesY, DestCoordinatesZ);
-    if (distanceToDestination <= 5.0f)  // Consider it reached if within 5 yards
+
+    // If we're already at the destination
+    if (distanceToDestination <= 5.0f)
     {
         sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotAI: Bot %s reached its specific destination", me->GetName());
+        m_failedPathAttempts = 0;
+        m_hasPreviousFailure = false;
+
         if (HasReachedExploreDestination())
         {
             hasPoiDestination = false;
@@ -907,17 +914,48 @@ void WorldBotAI::HandleSpecificDestinationCompletion()
                 StartExploring();
             }
         }
+        return;
     }
-    else
+
+    // Check if this is the same destination we previously failed at
+    if (IsSameDestination(DestCoordinatesX, DestCoordinatesY, DestCoordinatesZ, DestMap))
     {
-        sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotAI: Bot %s near destination but not exact. Attempting to get closer.", me->GetName());
-        if (StartNewPathToSpecificDestination(DestCoordinatesX, DestCoordinatesY, DestCoordinatesZ, DestMap, false))
+        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "WorldBotAI: %s attempting to path to previously failed location, finding new grind spot",
+            me->GetName());
+        m_taskManager.CompleteCurrentTask();
+        return;
+    }
+
+    // Increment failed attempts if we're currently moving (i.e., a path attempt is in progress)
+    if (!me->HasUnitState(UNIT_STAT_NOT_MOVE))
+    {
+        m_failedPathAttempts++;
+        sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "WorldBotAI: Path attempt %u/%u for bot %s",
+            m_failedPathAttempts, MAX_PATH_ATTEMPTS, me->GetName());
+
+        if (m_failedPathAttempts >= MAX_PATH_ATTEMPTS)
         {
-            sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "WorldBotAI: %s created new path to get closer to destination", me->GetName());
+            sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "WorldBotAI: %s exceeded maximum path attempts (%u), teleporting to destination",
+                me->GetName(), MAX_PATH_ATTEMPTS);
+
+            // Record this as a failed location before teleporting
+            UpdateFailedLocation(DestCoordinatesX, DestCoordinatesY, DestCoordinatesZ, DestMap);
+
+            me->TeleportTo(DestMap, DestCoordinatesX, DestCoordinatesY, DestCoordinatesZ, me->GetOrientation());
+            m_failedPathAttempts = 0;
+            m_taskManager.CompleteCurrentTask();
+            return;
         }
-        else
+    }
+
+    // Only attempt a new path if we're not currently moving
+    if (me->HasUnitState(UNIT_STAT_NOT_MOVE))
+    {
+        sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotAI: Bot %s attempting to get closer to destination", me->GetName());
+        if (!StartNewPathToSpecificDestination(DestCoordinatesX, DestCoordinatesY, DestCoordinatesZ, DestMap, false))
         {
-            sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "WorldBotAI: %s failed to create new path to destination. Completing task.", me->GetName());
+            sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "WorldBotAI: %s failed to create path to destination", me->GetName());
+            UpdateFailedLocation(DestCoordinatesX, DestCoordinatesY, DestCoordinatesZ, DestMap);
             m_taskManager.CompleteCurrentTask();
         }
     }

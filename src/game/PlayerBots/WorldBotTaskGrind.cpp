@@ -89,11 +89,7 @@ bool WorldBotAI::SetGrindDestination()
 
             bool levelOk = (quest.level <= maxLevel && quest.level >= minLevel);
 
-            /*sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotAI: Checking grind mob - Name: %s, Level: %u, MyLevel: %u (Range: %d-%d), Faction: %s, Map: %u - %s",
-                quest.creatureName.c_str(), quest.level, myLevel, minLevel, maxLevel,
-                quest.faction.c_str(), quest.mapId,
-                levelOk ? "VALID" : "Invalid level");
-            */
+            //sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotAI: Checking grind mob - Name: %s, Level: %u, MyLevel: %u (Range: %d-%d), Map: %u - %s", quest.creatureName.c_str(), quest.level, myLevel, minLevel, maxLevel, quest.mapId, levelOk ? "VALID" : "Invalid level");
 
             if (levelOk)
             {
@@ -104,23 +100,23 @@ bool WorldBotAI::SetGrindDestination()
 
     if (validCreatures.empty())
     {
-        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "WorldBotAI: No valid grind mobs found for bot %s (level %u) - Checked %zu total mobs",
-            me->GetName(), me->GetLevel(), grindCreatures.size());
+        sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "WorldBotAI: No valid grind mobs found for bot %s (level %u) - Checked %zu total mobs", me->GetName(), me->GetLevel(), grindCreatures.size());
         return false;
     }
 
     if (validCreatures.empty())
     {
         sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "WorldBotAI: No valid grind quests found for bot %s (level %u)", me->GetName(), me->GetLevel());
+
         return false;
     }
 
     // Score each quest based on multiple factors
-    struct QuestScore {
+    struct CreatureScore {
         const GrindCreatureInfo* creature;
         float score;
     };
-    std::vector<QuestScore> scoredCreatures;
+    std::vector<CreatureScore> scoredCreatures;
 
     for (const auto* creature : validCreatures)
     {
@@ -141,7 +137,7 @@ bool WorldBotAI::SetGrindDestination()
 
     // Sort by score and select the best
     std::sort(scoredCreatures.begin(), scoredCreatures.end(),
-        [](const QuestScore& a, const QuestScore& b) { return a.score > b.score; });
+        [](const CreatureScore& a, const CreatureScore& b) { return a.score > b.score; });
 
     const GrindCreatureInfo* selectedCreatures = scoredCreatures[0].creature;
 
@@ -152,8 +148,8 @@ bool WorldBotAI::SetGrindDestination()
     m_grindDestination.y = selectedCreatures->position_y;
     m_grindDestination.z = selectedCreatures->position_z;
 
-    // Set grind radius based on cluster size but no larger than visibility
-    m_grindRadius = std::min(selectedCreatures->clusterRadius * 1.2f, VISIBILITY_DISTANCE_NORMAL);
+    // Set grind radius based on cluster size but no larger than large visibility
+    m_grindRadius = std::min(selectedCreatures->clusterRadius * 1.2f, VISIBILITY_DISTANCE_LARGE);
 
     // Check if we're already close enough to this destination
     float distanceToDestination = me->GetDistance(m_grindDestination.x, m_grindDestination.y, m_grindDestination.z);

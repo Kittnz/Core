@@ -1,7 +1,12 @@
 #include "WorldBotTaskManager.h"
 #include "WorldBotAI.h"
 
-WorldBotTaskManager::WorldBotTaskManager(WorldBotAI* bot) : m_bot(bot), m_currentTaskId(TASK_NONE) {}
+const float WorldBotTaskManager::BLACKLIST_RADIUS = 50.0f;
+
+WorldBotTaskManager::WorldBotTaskManager(WorldBotAI* bot) : m_bot(bot), m_currentTaskId(TASK_NONE)
+{
+    m_blacklistedLocations.reserve(100);
+}
 
 void WorldBotTaskManager::RegisterTask(const WorldBotTask& task)
 {
@@ -185,7 +190,6 @@ WorldBotTask* WorldBotTaskManager::SelectNextTask()
     }
 }
 
-
 void WorldBotTaskManager::CompleteCurrentTask()
 {
     const WorldBotTask* currentTask = FindTaskById(m_currentTaskId);
@@ -194,6 +198,13 @@ void WorldBotTaskManager::CompleteCurrentTask()
         sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotTaskManager: Completing task %s", currentTask->name.c_str());
         const_cast<WorldBotTask*>(currentTask)->isInProgress = false;
         m_bot->OnTaskComplete(m_currentTaskId);
+
+        // If we're completing a task due to a failed location, ensure we don't immediately restart it
+        if (m_currentTaskId == TASK_GRIND)
+        {
+            CleanupBlacklist();
+        }
+
         m_currentTaskId = TASK_NONE;
 
         const WorldBotTask* nextTask = SelectNextTask();
@@ -246,4 +257,46 @@ void WorldBotAI::OnTaskComplete(uint8 completedTaskId)
     default:
         break;
     }
+}
+
+void WorldBotTaskManager::AddFailedLocation(float x, float y, float z, uint32 mapId)
+{
+    CleanupBlacklist();
+
+    FailedLocation loc;
+    loc.x = x;
+    loc.y = y;
+    loc.z = z;
+    loc.mapId = mapId;
+    loc.failureTime = time(nullptr);
+    m_blacklistedLocations.push_back(loc);
+
+    sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "WorldBotTaskManager: Added failed location (%.2f, %.2f, %.2f) to blacklist", x, y, z);
+}
+
+bool WorldBotTaskManager::IsLocationBlacklisted(float x, float y, float z, uint32 mapId) const
+{
+    time_t now = time(nullptr);
+
+    for (const auto& loc : m_blacklistedLocations)
+    {
+        if ((now - loc.failureTime) > BLACKLIST_DURATION)
+            continue;
+
+        if (mapId != loc.mapId)
+            continue;
+
+        float distance = std::sqrt(pow(x - loc.x, 2) + pow(y - loc.y, 2) + pow(z - loc.z, 2));
+        if (distance < BLACKLIST_RADIUS)
+            return true;
+    }
+    return false;
+}
+
+void WorldBotTaskManager::CleanupBlacklist()
+{
+    time_t now = time(nullptr);
+    auto it = std::remove_if(m_blacklistedLocations.begin(), m_blacklistedLocations.end(),
+        [now](const FailedLocation& loc) { return (now - loc.failureTime) > BLACKLIST_DURATION; });
+    m_blacklistedLocations.erase(it, m_blacklistedLocations.end());
 }

@@ -45,12 +45,29 @@ public:
     std::vector<uint8> GetImplementedTaskIds() const;
     const WorldBotTask* FindTaskById(uint8 taskId) const;
     bool IsTaskLevelAppropriate(uint8 taskId, uint8 botLevel) const;
+    void AddFailedLocation(float x, float y, float z, uint32 mapId);
+    bool IsLocationBlacklisted(float x, float y, float z, uint32 mapId) const;
 
 private:
     WorldBotAI* m_bot;
     std::vector<WorldBotTask> m_tasks;
     uint8 m_currentTaskId;
 
+    // New structs and members for location blacklisting
+    struct FailedLocation
+    {
+        float x;
+        float y;
+        float z;
+        uint32 mapId;
+        time_t failureTime;
+    };
+
+    std::vector<FailedLocation> m_blacklistedLocations;
+    static const uint32 BLACKLIST_DURATION = 300; // 5 minutes in seconds
+    static const float BLACKLIST_RADIUS;
+
+    void CleanupBlacklist();
     WorldBotTask* SelectNextTask();
     void StartTask(WorldBotTask* task);
 };
