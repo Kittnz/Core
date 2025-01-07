@@ -74,11 +74,11 @@ bool WorldBotAI::SetGrindDestination()
 
     std::vector<const GrindCreatureInfo*> validCreatures;
 
-    // find quests within level range
-    for (const auto& quest : grindCreatures)
+    // find creatures within level range
+    for (const auto& creature : grindCreatures)
     {
         // First check map
-        bool mapOk = (quest.mapId == me->GetMapId());
+        bool mapOk = (creature.mapId == me->GetMapId());
 
         if (mapOk)
         {
@@ -87,13 +87,13 @@ bool WorldBotAI::SetGrindDestination()
             int minLevel = myLevel - MAX_GRIND_LEVEL_DIFFERENCE;
             if (minLevel < 1) minLevel = 1;
 
-            bool levelOk = (quest.level <= maxLevel && quest.level >= minLevel);
+            bool levelOk = (creature.level <= maxLevel && creature.level >= minLevel);
 
             //sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBotAI: Checking grind mob - Name: %s, Level: %u, MyLevel: %u (Range: %d-%d), Map: %u - %s", quest.creatureName.c_str(), quest.level, myLevel, minLevel, maxLevel, quest.mapId, levelOk ? "VALID" : "Invalid level");
 
             if (levelOk)
             {
-                validCreatures.push_back(&quest);
+                validCreatures.push_back(&creature);
             }
         }
     }
