@@ -2614,8 +2614,7 @@ void PlayerBotMgr::WorldBotCreator()
                 [&](const WorldBotsCollection& bot) {
                     return bot.level >= range.minLevel && bot.level <= range.maxLevel;
                 });
-            sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBot: Selected %u bots for level range %u-%u (target: %.1f%%)",
-                rangeCount, range.minLevel, range.maxLevel, range.percentage * 100.0f);
+            sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "WorldBot: Selected %u bots for level range %u-%u (target: %.1f%%)", rangeCount, range.minLevel, range.maxLevel, range.percentage * 100.0f);
         }
 
         return selectedBots;
